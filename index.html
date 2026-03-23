@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>股利追蹤清單</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page page-list">
+    <header class="topbar">
+      <div class="search-box">
+        <input id="keyword" type="search" placeholder="搜尋股號或名稱" aria-label="搜尋股號或名稱">
+      </div>
+      <button id="addStockBtn" class="add-btn" type="button">+ 新增追蹤股</button>
+    </header>
+
+    <section class="section-title-wrap">
+      <h1>我的除權息追蹤清單</h1>
+      <p class="subtitle">點選卡片可查看時間軸與完整歷史紀錄</p>
+    </section>
+
+    <section id="stockList" class="stock-list" aria-live="polite"></section>
+  </main>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>個股詳情</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page page-detail">
+    <header class="detail-head">
+      <a href="./index.html" class="back-link" aria-label="返回追蹤清單">◀ 返回</a>
+      <div class="detail-id-wrap">
+        <p id="detailSymbolTop" class="detail-symbol">--</p>
+        <p id="detailNameTop" class="detail-name-top">--</p>
+      </div>
+      <button type="button" class="icon-btn" aria-label="設定">⚙</button>
+    </header>
+
+    <section id="stockSummary" class="stock-summary"></section>
+
+    <section class="time-filter">
+      <h2>時間除權息紀錄</h2>
+      <div class="pills" id="rangePills">
+        <button type="button" class="pill active" data-range="1">近 1 年</button>
+        <button type="button" class="pill" data-range="3">近 3 年</button>
+        <button type="button" class="pill" data-range="5">近 5 年</button>
+        <button type="button" class="pill" data-range="all">全部</button>
+      </div>
+    </section>
+
+    <section>
+      <h2 id="historyTitle">歷年除權息紀錄（近 1 年）</h2>
+      <div id="historyList" class="history-list"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./js/detail.js"></script>
+</body>
+</html>
