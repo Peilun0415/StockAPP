@@ -1,7 +1,7 @@
 import { stockDataset } from "./data.js";
 import { firebaseConfig } from "./firebase-config.js";
 
-const LS_KEY = "stockapp_watchlist_v1";
+const LS_KEY_BASE = "stockapp_watchlist_v1";
 const DEFAULT_ITEMS = stockDataset.map((s) => ({ symbol: s.symbol, name: s.name }));
 
 let firestoreDb = null;
@@ -27,7 +27,8 @@ async function ensureFirestore() {
   }
 }
 
-function getLocalWatchlist() {
+function getLocalWatchlist(uid) {
+  const LS_KEY = uid ? `${LS_KEY_BASE}_${uid}` : LS_KEY_BASE;
   const raw = localStorage.getItem(LS_KEY);
   if (!raw) {
     localStorage.setItem(LS_KEY, JSON.stringify(DEFAULT_ITEMS));
@@ -46,53 +47,62 @@ function getLocalWatchlist() {
   }
 }
 
-function saveLocalWatchlist(items) {
+function saveLocalWatchlist(items, uid) {
+  const LS_KEY = uid ? `${LS_KEY_BASE}_${uid}` : LS_KEY_BASE;
   localStorage.setItem(LS_KEY, JSON.stringify(items));
 }
 
-export async function loadWatchlist() {
+function getUserDoc(api, db, uid, symbol) {
+  return api.doc(db, "users", uid, "watchlist", symbol);
+}
+
+function getUserCollection(api, db, uid) {
+  return api.collection(db, "users", uid, "watchlist");
+}
+
+export async function loadWatchlist(uid = null) {
   const fb = await ensureFirestore();
-  if (!fb) {
-    return getLocalWatchlist();
+  if (!fb || !uid) {
+    return getLocalWatchlist(uid);
   }
 
   const { db, api } = fb;
-  const ref = api.collection(db, "watchlist");
+  const ref = getUserCollection(api, db, uid);
   const snap = await api.getDocs(ref);
   if (snap.empty) {
     for (const item of DEFAULT_ITEMS) {
-      await api.setDoc(api.doc(db, "watchlist", item.symbol), item);
+      await api.setDoc(getUserDoc(api, db, uid, item.symbol), item);
     }
     return [...DEFAULT_ITEMS];
   }
   return snap.docs.map((d) => d.data());
 }
 
-export async function addWatchStock(item) {
+export async function addWatchStock(item, uid = null) {
   const fb = await ensureFirestore();
-  if (!fb) {
-    const list = getLocalWatchlist();
+  if (!fb || !uid) {
+    const list = getLocalWatchlist(uid);
     const exists = list.some((i) => i.symbol === item.symbol);
     if (!exists) {
       list.push(item);
-      saveLocalWatchlist(list);
+      saveLocalWatchlist(list, uid);
     }
     return list;
   }
   const { db, api } = fb;
-  await api.setDoc(api.doc(db, "watchlist", item.symbol), item, { merge: true });
-  return loadWatchlist();
+  await api.setDoc(getUserDoc(api, db, uid, item.symbol), item, { merge: true });
+  return loadWatchlist(uid);
 }
 
-export async function removeWatchStock(symbol) {
+export async function removeWatchStock(symbol, uid = null) {
   const fb = await ensureFirestore();
-  if (!fb) {
-    const list = getLocalWatchlist().filter((item) => item.symbol !== symbol);
-    saveLocalWatchlist(list);
+  if (!fb || !uid) {
+    const list = getLocalWatchlist(uid).filter((item) => item.symbol !== symbol);
+    saveLocalWatchlist(list, uid);
     return list;
   }
   const { db, api } = fb;
-  await api.deleteDoc(api.doc(db, "watchlist", symbol));
-  return loadWatchlist();
+  await api.deleteDoc(getUserDoc(api, db, uid, symbol));
+  return loadWatchlist(uid);
 }
 

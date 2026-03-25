@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登入 - StockAPP</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="login-body">
+  <main class="login-page">
+    <section class="login-card">
+      <div class="login-brand">
+        <div class="cat-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="狗狗圖示">
+            <circle cx="32" cy="30" r="16" fill="#F5D0B2"/>
+            <path d="M18 18l6 10c-5 1-9-2-6-10z" fill="#F0C2A4"/>
+            <path d="M46 18l-6 10c5 1 9-2 6-10z" fill="#F0C2A4"/>
+            <circle cx="26" cy="29" r="2.5" fill="#2B2B2B"/>
+            <circle cx="38" cy="29" r="2.5" fill="#2B2B2B"/>
+            <ellipse cx="32" cy="40" rx="11" ry="9" fill="#FCE6CF"/>
+            <path d="M26 41c1-4 11-4 12 0 0 4-4 6-6 6s-6-2-6-6z" fill="#2B2B2B"/>
+            <path d="M32 46c-1 2-4 4-7 3" fill="none" stroke="#2B2B2B" stroke-width="2" stroke-linecap="round"/>
+            <path d="M32 46c1 2 4 4 7 3" fill="none" stroke="#2B2B2B" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h1 class="login-title">StockAPP 登入</h1>
+      </div>
+
+      <button id="authBtn" class="login-google-btn" type="button">
+        <span class="google-g" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" role="img" aria-label="Google">
+            <path fill="#EA4335" d="M12 10.2v3.6h4.3c-.2 1.1-1.2 3.1-4.3 3.1-2.6 0-4.8-2.2-4.8-4.9S9.4 7.1 12 7.1c1.5 0 2.5.6 3.1 1.1l2.1-2.1C15.9 4.9 14.2 4 12 4 7.6 4 4 7.6 4 12s3.6 8 8 8c4.6 0 7.6-3.2 7.6-7.7 0-.5-.1-1-.1-1.4H12z"/>
+          </svg>
+        </span>
+        使用 Google 登入
+      </button>
+    </section>
+  </main>
+
+  <script type="module" src="./js/login.js"></script>
+</body>
+</html>
+

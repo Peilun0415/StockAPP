@@ -1,5 +1,7 @@
 import { stockDataset, getSignalByRatio, formatMoney, cloneStock } from "./data.js";
 import { fetchRealtimePrice } from "./market-api.js";
+import { initGoogleAuthUI } from "./auth.js";
+import { requireAuth } from "./auth-guard.js";
 
 const topSymbol = document.querySelector("#detailSymbolTop");
 const topName = document.querySelector("#detailNameTop");
@@ -7,6 +9,9 @@ const summaryRoot = document.querySelector("#stockSummary");
 const historyRoot = document.querySelector("#historyList");
 const historyTitle = document.querySelector("#historyTitle");
 const rangePills = document.querySelector("#rangePills");
+const authBtn = document.querySelector("#authBtn");
+const authUserEl = document.querySelector("#authUser");
+const authAvatarEl = document.querySelector("#authAvatar");
 
 const params = new URLSearchParams(window.location.search);
 const symbol = (params.get("symbol") || "").toUpperCase();
@@ -88,6 +93,9 @@ rangePills.addEventListener("click", (event) => {
 });
 
 async function initialize() {
+  const returnTo = window.location.pathname + window.location.search;
+  await requireAuth(returnTo);
+
   const realtime = await fetchRealtimePrice(stock.symbol);
   if (realtime != null) {
     stock.currentPrice = realtime;
@@ -96,4 +104,16 @@ async function initialize() {
   renderHistory(stock);
 }
 
-initialize();
+async function boot() {
+  initGoogleAuthUI({
+    authBtn,
+    authUserEl,
+    avatarEl: authAvatarEl,
+    onUserChanged: () => {
+      // 此頁目前只顯示登入狀態；追蹤清單儲存已在首頁完成
+    }
+  });
+  await initialize();
+}
+
+boot();

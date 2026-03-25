@@ -1,12 +1,19 @@
 import { stockDataset, getSignalByRatio, formatMoney, cloneStock, createCustomStock } from "./data.js";
 import { loadWatchlist, addWatchStock, removeWatchStock } from "./watchlist-store.js";
 import { fetchRealtimePrices } from "./market-api.js";
+import { initGoogleAuthUI } from "./auth.js";
+import { requireAuth } from "./auth-guard.js";
 
 const listRoot = document.querySelector("#stockList");
 const keywordInput = document.querySelector("#keyword");
 const addBtn = document.querySelector("#addStockBtn");
+const authBtn = document.querySelector("#authBtn");
+const authUserEl = document.querySelector("#authUser");
+const authAvatarEl = document.querySelector("#authAvatar");
 
 let allStocks = [];
+let currentUid = null;
+let loadToken = 0;
 
 function buildStockByWatchlist(watchlist) {
   const map = new Map(stockDataset.map((s) => [s.symbol, cloneStock(s)]));
@@ -78,10 +85,14 @@ async function refreshRealtimePrice() {
   renderCards(filterByKeyword(keywordInput.value));
 }
 
-async function initialize() {
-  const watchlist = await loadWatchlist();
+async function reloadForCurrentUser() {
+  const token = ++loadToken;
+  const watchlist = await loadWatchlist(currentUid);
+  if (token !== loadToken) {
+    return;
+  }
   allStocks = buildStockByWatchlist(watchlist);
-  renderCards(allStocks);
+  renderCards(filterByKeyword(keywordInput.value));
   await refreshRealtimePrice();
 }
 
@@ -93,11 +104,8 @@ addBtn.addEventListener("click", async () => {
   const symbol = symbolInput.trim().toUpperCase();
   const nameInput = window.prompt("輸入股票名稱（可留空）");
   const name = (nameInput || symbol).trim() || symbol;
-  await addWatchStock({ symbol, name });
-  const watchlist = await loadWatchlist();
-  allStocks = buildStockByWatchlist(watchlist);
-  renderCards(filterByKeyword(keywordInput.value));
-  await refreshRealtimePrice();
+  await addWatchStock({ symbol, name }, currentUid);
+  await reloadForCurrentUser();
 });
 
 listRoot.addEventListener("click", async (event) => {
@@ -110,14 +118,31 @@ listRoot.addEventListener("click", async (event) => {
   if (!window.confirm(`確定刪除 ${symbol} 追蹤嗎？`)) {
     return;
   }
-  await removeWatchStock(symbol);
-  const watchlist = await loadWatchlist();
-  allStocks = buildStockByWatchlist(watchlist);
-  renderCards(filterByKeyword(keywordInput.value));
+  await removeWatchStock(symbol, currentUid);
+  await reloadForCurrentUser();
 });
 
 keywordInput.addEventListener("input", (event) => {
   renderCards(filterByKeyword(event.target.value));
 });
 
-initialize();
+async function boot() {
+  const returnTo = window.location.pathname + window.location.search;
+  const user = await requireAuth(returnTo);
+  // 未登入已被跳轉；若 Firebase 未設定則 user 可能為 null
+  if (user?.uid) {
+    currentUid = user.uid;
+  }
+
+  initGoogleAuthUI({
+    authBtn,
+    authUserEl,
+    avatarEl: authAvatarEl,
+    onUserChanged: async (u) => {
+      currentUid = u?.uid ?? null;
+      await reloadForCurrentUser();
+    }
+  });
+}
+
+boot();
