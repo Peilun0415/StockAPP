@@ -119,7 +119,7 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
       if (user) {
         setBtnState(authBtn, { text: "登出", disabled: false });
       } else {
-        setBtnState(authBtn, { text: "登入", disabled: false });
+        setBtnState(authBtn, { text: "登入 Google", disabled: false });
       }
       onUserChanged?.(user || null);
     });

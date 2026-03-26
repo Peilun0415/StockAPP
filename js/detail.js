@@ -1,6 +1,6 @@
 import { stockDataset, getSignalByRatio, formatMoney, cloneStock } from "./data.js";
 import { fetchRealtimePrice } from "./market-api.js";
-import { initGoogleAuthUI } from "./auth.js";
+import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 
 const topSymbol = document.querySelector("#detailSymbolTop");
@@ -109,8 +109,12 @@ async function boot() {
     authBtn,
     authUserEl,
     avatarEl: authAvatarEl,
-    onUserChanged: () => {
-      // 此頁目前只顯示登入狀態；追蹤清單儲存已在首頁完成
+    onUserChanged: (u) => {
+      // 登出後直接回到登入頁，避免在未登入狀態停留
+      if (!u && isAuthAvailable()) {
+        const returnTo = window.location.pathname + window.location.search;
+        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+      }
     }
   });
   await initialize();

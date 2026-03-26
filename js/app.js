@@ -1,7 +1,7 @@
 import { stockDataset, getSignalByRatio, formatMoney, cloneStock, createCustomStock } from "./data.js";
 import { loadWatchlist, addWatchStock, removeWatchStock } from "./watchlist-store.js";
 import { fetchRealtimePrices } from "./market-api.js";
-import { initGoogleAuthUI } from "./auth.js";
+import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 
 const listRoot = document.querySelector("#stockList");
@@ -140,7 +140,14 @@ async function boot() {
     avatarEl: authAvatarEl,
     onUserChanged: async (u) => {
       currentUid = u?.uid ?? null;
-      await reloadForCurrentUser();
+      if (!u && isAuthAvailable()) {
+        const returnTo = window.location.pathname + window.location.search;
+        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+        return;
+      }
+      if (currentUid) {
+        await reloadForCurrentUser();
+      }
     }
   });
 }
