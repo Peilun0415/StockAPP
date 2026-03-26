@@ -1,29 +1,43 @@
+import { loadStockMasterList } from "./stock-master.js";
+
 function normalizeSymbol(symbol) {
-  return symbol.toUpperCase();
+  return String(symbol || "").toUpperCase();
 }
 
-export async function fetchRealtimePrice(symbol) {
-  const s = normalizeSymbol(symbol);
+let cachedPriceMap = null;
+let cachedPriceMapAt = 0;
+const CACHE_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getPriceMap() {
+  if (cachedPriceMap && Date.now() - cachedPriceMapAt < CACHE_MS) {
+    return cachedPriceMap;
+  }
   try {
-    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?interval=1d&range=1d`);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    const result = data?.chart?.result?.[0];
-    const price = result?.meta?.regularMarketPrice ?? result?.meta?.previousClose;
-    return Number.isFinite(price) ? price : null;
+    const master = await loadStockMasterList();
+    cachedPriceMap = new Map(master.map((s) => [normalizeSymbol(s.symbol), s.lastClose ?? null]));
+    cachedPriceMapAt = Date.now();
+    return cachedPriceMap;
   } catch (error) {
-    console.warn(`取得即時股價失敗: ${s}`, error);
-    return null;
+    console.warn("取得股價資料失敗（使用空價格表）", error);
+    cachedPriceMap = new Map();
+    cachedPriceMapAt = Date.now();
+    return cachedPriceMap;
   }
 }
 
+// 本專案在純前端環境下避免 Yahoo CORS 問題
+// 這裡改用 TWSE OpenAPI 的最新收盤價（近似即時）
+export async function fetchRealtimePrice(symbol) {
+  const map = await getPriceMap();
+  const price = map.get(normalizeSymbol(symbol));
+  return typeof price === "number" ? price : null;
+}
+
 export async function fetchRealtimePrices(symbols) {
-  const tasks = symbols.map(async (symbol) => ({
-    symbol,
-    price: await fetchRealtimePrice(symbol)
-  }));
-  return Promise.all(tasks);
+  const map = await getPriceMap();
+  return symbols.map((symbol) => {
+    const price = map.get(normalizeSymbol(symbol));
+    return { symbol, price: typeof price === "number" ? price : null };
+  });
 }
 

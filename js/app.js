@@ -3,17 +3,20 @@ import { loadWatchlist, addWatchStock, removeWatchStock } from "./watchlist-stor
 import { fetchRealtimePrices } from "./market-api.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
+import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
 
 const listRoot = document.querySelector("#stockList");
 const keywordInput = document.querySelector("#keyword");
-const addBtn = document.querySelector("#addStockBtn");
 const authBtn = document.querySelector("#authBtn");
 const authUserEl = document.querySelector("#authUser");
 const authAvatarEl = document.querySelector("#authAvatar");
+const searchSuggestRoot = document.querySelector("#searchSuggest");
 
 let allStocks = [];
 let currentUid = null;
 let loadToken = 0;
+let stockMaster = [];
+let masterLoadingPromise = null;
 
 function buildStockByWatchlist(watchlist) {
   const map = new Map(stockDataset.map((s) => [s.symbol, cloneStock(s)]));
@@ -72,6 +75,91 @@ function filterByKeyword(keyword) {
   ));
 }
 
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+async function ensureMasterLoaded() {
+  if (stockMaster.length) return stockMaster;
+  if (masterLoadingPromise) return masterLoadingPromise;
+  masterLoadingPromise = loadStockMasterList()
+    .then((items) => {
+      stockMaster = items || [];
+      return stockMaster;
+    })
+    .catch((err) => {
+      console.warn("載入股票主檔失敗", err);
+      stockMaster = [];
+      return stockMaster;
+    });
+  return masterLoadingPromise;
+}
+
+function hideSuggestions() {
+  if (!searchSuggestRoot) return;
+  searchSuggestRoot.hidden = true;
+  searchSuggestRoot.innerHTML = "";
+}
+
+function showSuggestions(matches) {
+  if (!searchSuggestRoot) return;
+  if (!matches?.length) {
+    hideSuggestions();
+    return;
+  }
+  searchSuggestRoot.hidden = false;
+  searchSuggestRoot.innerHTML = matches.map((m) => {
+    return `
+      <button type="button" class="suggest-item" data-symbol="${escapeHtml(m.symbol)}" data-name="${escapeHtml(m.name)}">
+        <span class="suggest-code">${escapeHtml(m.symbol)}</span>
+        <span class="suggest-name">${escapeHtml(m.name)}</span>
+        <span class="suggest-add">加入</span>
+      </button>
+    `;
+  }).join("");
+}
+
+async function updateSuggestions(query) {
+  const q = String(query || "").trim();
+  if (!q) {
+    hideSuggestions();
+    return;
+  }
+
+  const qUpper = q.toUpperCase();
+  // 快速建議：讓你輸入 4 碼代號時立刻看到建議（避免主檔載入失敗/太慢）
+  const quick = (() => {
+    if (/^\d{4}$/.test(qUpper)) {
+      return { symbol: `${qUpper}.TW`, name: "（等待載入）" };
+    }
+    if (/^\d{4}\.TW$/.test(qUpper)) {
+      return { symbol: qUpper, name: "（等待載入）" };
+    }
+    return null;
+  })();
+
+  if (quick) {
+    showSuggestions([quick]);
+  }
+
+  await ensureMasterLoaded();
+  if (!stockMaster.length) {
+    // 若主檔載入失敗，就保留快速建議
+    if (!quick) {
+      hideSuggestions();
+    }
+    return;
+  }
+
+  const matches = searchStockMaster(stockMaster, q);
+  showSuggestions(matches);
+}
+
 async function refreshRealtimePrice() {
   const priceMap = await fetchRealtimePrices(allStocks.map((s) => s.symbol));
   const updates = new Map(priceMap.map((x) => [x.symbol, x.price]));
@@ -82,7 +170,8 @@ async function refreshRealtimePrice() {
     }
     return { ...item, currentPrice: realtime };
   });
-  renderCards(filterByKeyword(keywordInput.value));
+  // 搜尋框只用來「新增追蹤」，不拿來篩選追蹤清單內容
+  renderCards(allStocks);
 }
 
 async function reloadForCurrentUser() {
@@ -92,20 +181,51 @@ async function reloadForCurrentUser() {
     return;
   }
   allStocks = buildStockByWatchlist(watchlist);
-  renderCards(filterByKeyword(keywordInput.value));
+  // 搜尋框只用來「新增追蹤」，不拿來篩選追蹤清單內容
+  renderCards(allStocks);
   await refreshRealtimePrice();
 }
 
-addBtn.addEventListener("click", async () => {
-  const symbolInput = window.prompt("輸入股票代號（例如 2330.TW）");
-  if (!symbolInput) {
+async function addFromQuery(qRaw) {
+  const q = String(qRaw || "").trim();
+  if (!q) {
+    alert("請先在搜尋框輸入股號或公司名稱。");
+    keywordInput.focus();
     return;
   }
-  const symbol = symbolInput.trim().toUpperCase();
-  const nameInput = window.prompt("輸入股票名稱（可留空）");
-  const name = (nameInput || symbol).trim() || symbol;
-  await addWatchStock({ symbol, name }, currentUid);
+  const qUpper = q.toUpperCase();
+  const quickBest = (() => {
+    if (/^\d{4}$/.test(qUpper)) return { symbol: `${qUpper}.TW`, name: `${qUpper}.TW` };
+    if (/^\d{4}\.TW$/.test(qUpper)) return { symbol: qUpper, name: qUpper };
+    return null;
+  })();
+
+  // 代號型輸入：主檔載入失敗/過慢時也要能直接加入
+  if (quickBest && (!stockMaster.length && !masterLoadingPromise)) {
+    await addWatchStock({ symbol: quickBest.symbol, name: quickBest.name }, currentUid);
+    await reloadForCurrentUser();
+    hideSuggestions();
+    return;
+  }
+
+  await ensureMasterLoaded();
+  const matches = stockMaster.length ? searchStockMaster(stockMaster, q) : [];
+  const best = matches?.[0] || quickBest;
+  if (!best) {
+    alert("找不到符合的股票代號/名稱。");
+    return;
+  }
+
+  await addWatchStock({ symbol: best.symbol, name: best.name }, currentUid);
   await reloadForCurrentUser();
+  hideSuggestions();
+}
+
+keywordInput.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const qRaw = keywordInput.value;
+  await addFromQuery(qRaw);
 });
 
 listRoot.addEventListener("click", async (event) => {
@@ -123,8 +243,38 @@ listRoot.addEventListener("click", async (event) => {
 });
 
 keywordInput.addEventListener("input", (event) => {
-  renderCards(filterByKeyword(event.target.value));
+  const q = event.target.value;
+  updateSuggestions(q);
+  if (!q || !q.trim()) {
+    hideSuggestions();
+  }
 });
+
+if (searchSuggestRoot) {
+  searchSuggestRoot.addEventListener("click", async (event) => {
+    const btn = event.target.closest("[data-symbol]");
+    if (!btn) return;
+
+    const symbol = btn.getAttribute("data-symbol");
+    const name = btn.getAttribute("data-name") || symbol;
+    if (!symbol) return;
+
+    await addWatchStock({ symbol, name }, currentUid);
+    await reloadForCurrentUser();
+    keywordInput.value = symbol;
+    hideSuggestions();
+  });
+
+  // 點擊空白處收合
+  document.addEventListener("click", (event) => {
+    if (!searchSuggestRoot || searchSuggestRoot.hidden) return;
+    const inSuggest = event.target && searchSuggestRoot.contains(event.target);
+    const inInput = event.target && keywordInput.contains(event.target);
+    if (!inSuggest && !inInput) {
+      hideSuggestions();
+    }
+  });
+}
 
 async function boot() {
   const returnTo = window.location.pathname + window.location.search;
@@ -133,6 +283,9 @@ async function boot() {
   if (user?.uid) {
     currentUid = user.uid;
   }
+
+  // 背景先載入股票主檔，讓搜尋建議更快出現
+  ensureMasterLoaded();
 
   initGoogleAuthUI({
     authBtn,
