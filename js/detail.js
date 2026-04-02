@@ -1,5 +1,6 @@
 import { stockDataset, getSignalByRatio, formatMoney, cloneStock } from "./data.js";
 import { fetchRealtimePrice } from "./market-api.js";
+import { fetchCorporateActionHistory, fetchDividendAnnouncementHistory } from "./corporate-actions-api.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 
@@ -68,14 +69,14 @@ function renderHistory(item) {
   }
 
   historyRoot.innerHTML = filtered.map((h) => {
-    const signal = getSignalByRatio(h.ratio);
+    const cashText = h.cashDividend == null ? "還未公佈" : formatMoney(h.cashDividend);
+    const stockText = h.stockDividend == null ? "還未公佈" : `${h.stockDividend} 股`;
     return `
-      <article class="history-card ${signal.key}">
-        <span class="timeline-dot ${signal.key}"></span>
+      <article class="history-card white">
+        <span class="timeline-dot white"></span>
         <p><strong>${h.date} 除權息完畢</strong></p>
-        <p>現金: ${formatMoney(h.cash)} | 當時價格: ${formatMoney(h.currentPrice)}</p>
-        <p>參考價: ${formatMoney(h.referencePrice)} | 價差: ${h.ratio}%</p>
-        <p><span class="badge ${signal.key}">${signal.icon} ${signal.text}</span></p>
+        <p>類型: ${h.type || "--"}</p>
+        <p>現金股利: ${cashText} | 股票股利: ${stockText}</p>
       </article>
     `;
   }).join("");
@@ -99,6 +100,14 @@ async function initialize() {
   const realtime = await fetchRealtimePrice(stock.symbol);
   if (realtime != null) {
     stock.currentPrice = realtime;
+  }
+  try {
+    stock.history = await fetchCorporateActionHistory(stock.symbol, 10);
+    if (!stock.history.length) {
+      stock.history = await fetchDividendAnnouncementHistory(stock.symbol);
+    }
+  } catch (error) {
+    console.warn("載入歷史除權息資料失敗，改用預設資料", error);
   }
   renderSummary(stock);
   renderHistory(stock);

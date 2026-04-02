@@ -1,6 +1,7 @@
 import { stockDataset, getSignalByRatio, formatMoney, cloneStock, createCustomStock } from "./data.js";
 import { loadWatchlist, addWatchStock, removeWatchStock } from "./watchlist-store.js";
 import { fetchRealtimePrices } from "./market-api.js";
+import { fetchAnnualCorporateActions } from "./corporate-actions-api.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
@@ -52,10 +53,8 @@ function renderCards(items) {
             <p class="price">${formatMoney(item.currentPrice)}</p>
           </div>
           <div class="right-col">
-            <p><strong>下次除息</strong></p>
-            <p>日期: ${item.nextDividendDate} | 除息額: ${cashText}</p>
-            <p>下次除權</p>
-            <p>日期: ${item.nextRightsDate} | 股數: ${rightsText}</p>
+            <p>除息日期: ${item.nextDividendDate} | 除息額: ${cashText}</p>
+            <p>除權日期: ${item.nextRightsDate} | 股數: ${rightsText}</p>
             <p>除息參考價: ${refText}</p>
             <p><span class="badge ${signal.key}">${signal.icon} ${signal.text} | 價差 ${ratioText}</span></p>
           </div>
@@ -63,6 +62,27 @@ function renderCards(items) {
       </article>
     `;
   }).join("");
+}
+
+async function enrichAnnualCorporateActions(items) {
+  if (!items.length) return items;
+  try {
+    const actionMap = await fetchAnnualCorporateActions(items.map((x) => x.symbol));
+    return items.map((item) => {
+      const action = actionMap.get(item.symbol);
+      if (!action) return item;
+      return {
+        ...item,
+        nextDividendDate: action.nextDividendDate ?? item.nextDividendDate,
+        cashDividend: action.cashDividend ?? item.cashDividend,
+        nextRightsDate: action.nextRightsDate ?? item.nextRightsDate,
+        stockDividend: action.stockDividend ?? item.stockDividend
+      };
+    });
+  } catch (error) {
+    console.warn("載入年度除權息資料失敗，改用現有資料", error);
+    return items;
+  }
 }
 
 function filterByKeyword(keyword) {
@@ -180,7 +200,7 @@ async function reloadForCurrentUser() {
   if (token !== loadToken) {
     return;
   }
-  allStocks = buildStockByWatchlist(watchlist);
+  allStocks = await enrichAnnualCorporateActions(buildStockByWatchlist(watchlist));
   // 搜尋框只用來「新增追蹤」，不拿來篩選追蹤清單內容
   renderCards(allStocks);
   await refreshRealtimePrice();
