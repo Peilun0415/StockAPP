@@ -90,12 +90,12 @@ function renderHistory(item) {
     const signalText = historySpreadRatio == null ? "⚪ 待定" : `${signal.icon} ${signal.text}`;
     const tone = signal?.key || "white";
     const refLine = h.referencePrice == null
-      ? "除權息參考價: 尚未固定（排程同步後顯示）"
+      ? "除權息參考價: 等待數據中"
       : `除權息參考價: ${formatMoney(h.referencePrice)}（基準日 ${h.referenceAnchorDate || "--"} 收盤）`;
     return `
       <article class="history-card ${tone}">
         <span class="timeline-dot ${tone}"></span>
-        <p><strong>${h.date} 除權息完畢</strong></p>
+        <p><strong>${h.date}</strong></p>
         <p>現金股利: ${cashText} | 股票股利: ${stockText}</p>
         <p>當時價格: ${eventPriceText}</p>
         <p>${refLine}</p>

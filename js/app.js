@@ -20,6 +20,7 @@ let currentUid = null;
 let loadToken = 0;
 let stockMaster = [];
 let masterLoadingPromise = null;
+let skipFirstAuthReloadForUid = null;
 
 function setPageLoading(show) {
   if (!pageLoadingEl) return;
@@ -190,11 +191,29 @@ function renderCards(items) {
           </div>
           <div class="right-col">
             <div class="event-grid">
-              <p class="info-chip">除息日期: ${item.nextDividendDate} | 除息額: ${cashText}</p>
-              <p class="info-chip">除權日期: ${item.nextRightsDate} | 股數: ${rightsText}</p>
+              <div class="info-split">
+                <p class="info-chip">
+                  <span class="chip-label">除息日期</span>
+                  <span class="chip-value">${item.nextDividendDate}</span>
+                </p>
+                <p class="info-chip">
+                  <span class="chip-label">除息額</span>
+                  <span class="chip-value">${cashText}</span>
+                </p>
+              </div>
+              <div class="info-split">
+                <p class="info-chip">
+                  <span class="chip-label">除權日期</span>
+                  <span class="chip-value">${item.nextRightsDate}</span>
+                </p>
+                <p class="info-chip">
+                  <span class="chip-label">股數</span>
+                  <span class="chip-value">${rightsText}</span>
+                </p>
+              </div>
             </div>
             ${hasEventDate ? `<p class="current-ref-line">${refTitle}: ${refText}</p>` : ""}
-            ${showSignal ? `<p class="current-signal-line"><span class="badge ${signal.key}">${signal.icon} ${signal.text} | 價差 ${ratioText}</span></p>` : ""}
+            ${showSignal ? `<p class="current-signal-line"><span class="badge ${signal.key}">${signal.icon} ${signal.text} 價差 ${ratioText}</span></p>` : ""}
             ${showPreviousEventBox ? `
               <div class="previous-event-box">
                 <p class="previous-event-title">上一期除權息（${previousDateText}）</p>
@@ -212,68 +231,55 @@ function renderCards(items) {
 async function enrichAnnualCorporateActions(items) {
   if (!items.length) return items;
   const symbols = items.map((x) => x.symbol);
-  let marketMap = new Map();
-  let previousEventMap = new Map();
-  try {
-    marketMap = await loadMarketCorporateSummaries(symbols);
-  } catch (error) {
-    console.warn("讀取市場除權息快取失敗", error);
+  const [marketRes, previousRes, actionRes] = await Promise.allSettled([
+    loadMarketCorporateSummaries(symbols),
+    loadLatestCompletedEvents(symbols),
+    fetchAnnualCorporateActions(symbols)
+  ]);
+
+  const marketMap = marketRes.status === "fulfilled" ? marketRes.value : new Map();
+  const previousEventMap = previousRes.status === "fulfilled" ? previousRes.value : new Map();
+  const actionMap = actionRes.status === "fulfilled" ? actionRes.value : new Map();
+
+  if (marketRes.status === "rejected") {
+    console.warn("讀取市場除權息快取失敗", marketRes.reason);
   }
-  try {
-    previousEventMap = await loadLatestCompletedEvents(symbols);
-  } catch (error) {
-    console.warn("讀取上一期除權息資料失敗", error);
+  if (previousRes.status === "rejected") {
+    console.warn("讀取上一期除權息資料失敗", previousRes.reason);
+  }
+  if (actionRes.status === "rejected") {
+    console.warn("載入年度除權息資料失敗，改用現有資料", actionRes.reason);
   }
 
-  try {
-    const actionMap = await fetchAnnualCorporateActions(symbols);
-    return items.map((item) => {
-      const market = marketMap.get(item.symbol);
-      const action = actionMap.get(item.symbol);
-      let next = { ...item };
+  return items.map((item) => {
+    const market = marketMap.get(item.symbol);
+    const action = actionMap.get(item.symbol);
+    const previousEvent = previousEventMap.get(item.symbol) ?? null;
+    let next = { ...item };
 
-      if (market) {
-        next = {
-          ...next,
-          name: market.name || next.name,
-          nextDividendDate: market.nextDividendDate ?? next.nextDividendDate,
-          cashDividend: market.cashDividend ?? next.cashDividend,
-          nextRightsDate: market.nextRightsDate ?? next.nextRightsDate,
-          stockDividend: market.stockDividend ?? next.stockDividend,
-          referencePrice: market.referencePrice ?? next.referencePrice
-        };
-      }
-      const previousEvent = previousEventMap.get(item.symbol) ?? null;
-      next = applyPreviousEventInfo({ ...next, previousEvent });
-
-      if (!action) return next;
-      return applyPreviousEventInfo(applyCorporateReference({
+    if (market) {
+      next = {
         ...next,
-        // 若資料庫沒有值，再補當下 TWT48U
-        nextDividendDate: next.nextDividendDate === "還未公佈" ? (action.nextDividendDate ?? next.nextDividendDate) : next.nextDividendDate,
-        cashDividend: next.cashDividend == null ? action.cashDividend : next.cashDividend,
-        nextRightsDate: next.nextRightsDate === "還未公佈" ? (action.nextRightsDate ?? next.nextRightsDate) : next.nextRightsDate,
-        stockDividend: next.stockDividend == null ? action.stockDividend : next.stockDividend
-      }));
-    });
-  } catch (error) {
-    console.warn("載入年度除權息資料失敗，改用現有資料", error);
-    return items.map((item) => {
-      const market = marketMap.get(item.symbol);
-      const previousEvent = previousEventMap.get(item.symbol) ?? null;
-      if (!market) return applyPreviousEventInfo({ ...item, previousEvent });
-      return applyPreviousEventInfo(applyCorporateReference({
-        ...item,
-        previousEvent,
-        name: market.name || item.name,
-        nextDividendDate: market.nextDividendDate ?? item.nextDividendDate,
-        cashDividend: market.cashDividend ?? item.cashDividend,
-        nextRightsDate: market.nextRightsDate ?? item.nextRightsDate,
-        stockDividend: market.stockDividend ?? item.stockDividend,
-        referencePrice: market.referencePrice ?? item.referencePrice
-      }));
-    });
-  }
+        name: market.name || next.name,
+        nextDividendDate: market.nextDividendDate ?? next.nextDividendDate,
+        cashDividend: market.cashDividend ?? next.cashDividend,
+        nextRightsDate: market.nextRightsDate ?? next.nextRightsDate,
+        stockDividend: market.stockDividend ?? next.stockDividend,
+        referencePrice: market.referencePrice ?? next.referencePrice
+      };
+    }
+    next = applyPreviousEventInfo({ ...next, previousEvent });
+
+    if (!action) return next;
+    return applyPreviousEventInfo(applyCorporateReference({
+      ...next,
+      // 若資料庫沒有值，再補當下 TWT48U
+      nextDividendDate: next.nextDividendDate === "還未公佈" ? (action.nextDividendDate ?? next.nextDividendDate) : next.nextDividendDate,
+      cashDividend: next.cashDividend == null ? action.cashDividend : next.cashDividend,
+      nextRightsDate: next.nextRightsDate === "還未公佈" ? (action.nextRightsDate ?? next.nextRightsDate) : next.nextRightsDate,
+      stockDividend: next.stockDividend == null ? action.stockDividend : next.stockDividend
+    }));
+  });
 }
 
 function filterByKeyword(keyword) {
@@ -372,6 +378,7 @@ async function updateSuggestions(query) {
 }
 
 async function refreshRealtimePrice() {
+  if (!allStocks.length) return;
   const priceMap = await fetchRealtimePrices(allStocks.map((s) => s.symbol));
   const updates = new Map(priceMap.map((x) => [x.symbol, x]));
   allStocks = allStocks.map((item) => {
@@ -385,7 +392,7 @@ async function refreshRealtimePrice() {
   renderCards(allStocks);
 }
 
-async function reloadForCurrentUser() {
+async function reloadForCurrentUser({ waitRealtime = false } = {}) {
   const token = ++loadToken;
   const watchlist = await loadWatchlist(currentUid);
   if (token !== loadToken) {
@@ -394,7 +401,13 @@ async function reloadForCurrentUser() {
   allStocks = await enrichAnnualCorporateActions(buildStockByWatchlist(watchlist));
   // 搜尋框只用來「新增追蹤」，不拿來篩選追蹤清單內容
   renderCards(allStocks);
-  await refreshRealtimePrice();
+  if (waitRealtime) {
+    await refreshRealtimePrice();
+  } else {
+    refreshRealtimePrice().catch((error) => {
+      console.warn("更新即時價格失敗", error);
+    });
+  }
 }
 
 async function addFromQuery(qRaw) {
@@ -503,6 +516,7 @@ async function boot() {
     // 首次進頁：等股票卡片資料載入並渲染後，再關閉 loading
     if (currentUid) {
       await reloadForCurrentUser();
+      skipFirstAuthReloadForUid = currentUid;
     } else {
       setPageLoading(false);
     }
@@ -512,6 +526,14 @@ async function boot() {
       authUserEl,
       avatarEl: authAvatarEl,
       onUserChanged: async (u) => {
+        const nextUid = u?.uid ?? null;
+        if (nextUid && skipFirstAuthReloadForUid && nextUid === skipFirstAuthReloadForUid) {
+          skipFirstAuthReloadForUid = null;
+          currentUid = nextUid;
+          setPageLoading(false);
+          return;
+        }
+        skipFirstAuthReloadForUid = null;
         currentUid = u?.uid ?? null;
         if (!u && isAuthAvailable()) {
           const returnTo = window.location.pathname + window.location.search;
