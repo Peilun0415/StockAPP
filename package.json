@@ -1,0 +1,11 @@
+{
+  "name": "stockapp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync:corporate": "node scripts/sync-twt48u-to-firestore.mjs"
+  },
+  "devDependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}

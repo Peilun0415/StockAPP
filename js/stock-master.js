@@ -1,5 +1,8 @@
-const TWSE_ENDPOINT = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
-const LOCAL_SNAPSHOT = "./data/stock-master.json";
+const TWSE_ENDPOINTS = [
+  "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json"
+];
+const RETRY_MS_MIN = 3000;
+const RETRY_MS_MAX = 60000;
 
 function normalizeSymbol(symbol) {
   return String(symbol || "").toUpperCase();
@@ -20,13 +23,19 @@ function buildMasterFromTwseRows(rows) {
   // 取 Code/Name/最近收盤價（ClosingPrice），避免 payload 太大
   const map = new Map();
   for (const row of rows || []) {
-    const code = row.Code || row.code || row.Symbol || row.symbol;
-    const name = row.Name || row.name || row.NameZh || row.nameZh || "";
+    const isArrayRow = Array.isArray(row);
+    const code = isArrayRow
+      ? row[0]
+      : row.Code || row.code || row.Symbol || row.symbol;
+    const name = isArrayRow
+      ? row[1]
+      : row.Name || row.name || row.NameZh || row.nameZh || "";
     const symbol = toSymbol(code);
     if (!symbol) continue;
     if (!map.has(symbol)) {
-      const closing =
-        row.ClosingPrice ?? row.ClosePrice ?? row.closingPrice ?? row.closePrice ?? null;
+      const closing = isArrayRow
+        ? row[7]
+        : row.ClosingPrice ?? row.ClosePrice ?? row.closingPrice ?? row.closePrice ?? null;
       const lastClose = closing === null || closing === "" ? null : Number(closing);
       map.set(symbol, { symbol, name: String(name || "").trim(), lastClose: Number.isFinite(lastClose) ? lastClose : null });
     }
@@ -37,43 +46,46 @@ function buildMasterFromTwseRows(rows) {
 // Scheme A：不使用 localStorage 儲存股票主檔快取
 
 async function fetchTwseMaster() {
-  const res = await fetch(TWSE_ENDPOINT);
-  if (!res.ok) {
-    throw new Error(`TWSE master fetch failed: HTTP ${res.status}`);
+  let lastError = null;
+  for (const endpoint of TWSE_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const payload = await res.json();
+      const rows = Array.isArray(payload) ? payload : payload?.data;
+      return buildMasterFromTwseRows(rows);
+    } catch (error) {
+      lastError = new Error(`endpoint ${endpoint} failed: ${error?.message || error}`);
+    }
   }
-  const rows = await res.json();
-  return buildMasterFromTwseRows(rows);
+  throw lastError || new Error("all TWSE endpoints failed");
 }
 
-async function fetchLocalSnapshot() {
-  const res = await fetch(LOCAL_SNAPSHOT);
-  if (!res.ok) {
-    throw new Error(`Local snapshot fetch failed: HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  if (!Array.isArray(data)) {
-    throw new Error("Local snapshot invalid format");
-  }
-  return data
-    .map((x) => ({
-      symbol: normalizeSymbol(x.symbol),
-      name: String(x.name || "").trim(),
-      lastClose: Number.isFinite(Number(x.lastClose)) ? Number(x.lastClose) : null
-    }))
-    .filter((x) => x.symbol && x.name);
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 export async function loadStockMasterList() {
-  try {
-    const items = await fetchLocalSnapshot();
-    if (items?.length) return items;
-  } catch (error) {
-    console.warn("讀取本地主檔失敗，改用遠端主檔（可能較慢/受限）", error);
+  // 不再 fallback 本地快照，改為持續重試遠端直到成功
+  // 注意：若遠端長時間不可用，這裡會持續等待。
+  let retryMs = RETRY_MS_MIN;
+  for (;;) {
+    try {
+      const items = await fetchTwseMaster();
+      if (items?.length) {
+        return items;
+      }
+      console.warn("遠端主檔回傳空資料，稍後重試");
+    } catch (error) {
+      console.warn("讀取遠端主檔失敗，稍後重試", error);
+    }
+    await sleep(retryMs);
+    retryMs = Math.min(RETRY_MS_MAX, retryMs * 2);
   }
-
-  // fallback：遠端抓取（不寫入 localStorage）
-  const latest = await fetchTwseMaster();
-  return latest?.length ? latest : [];
 }
 
 export function searchStockMaster(masterList, query) {

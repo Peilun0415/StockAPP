@@ -1,10 +1,11 @@
-import { stockDataset, getSignalByRatio, formatMoney, cloneStock, createCustomStock } from "./data.js";
 import { loadWatchlist, addWatchStock, removeWatchStock } from "./watchlist-store.js";
 import { fetchRealtimePrices } from "./market-api.js";
 import { fetchAnnualCorporateActions } from "./corporate-actions-api.js";
+import { loadMarketCorporateSummaries } from "./market-corporate-store.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
+import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
 
 const listRoot = document.querySelector("#stockList");
 const keywordInput = document.querySelector("#keyword");
@@ -20,19 +21,12 @@ let stockMaster = [];
 let masterLoadingPromise = null;
 
 function buildStockByWatchlist(watchlist) {
-  const map = new Map(stockDataset.map((s) => [s.symbol, cloneStock(s)]));
-  return watchlist.map((w) => {
-    const seed = map.get(w.symbol);
-    if (seed) {
-      return { ...seed, name: w.name || seed.name };
-    }
-    return createCustomStock(w.symbol, w.name || w.symbol);
-  });
+  return watchlist.map((w) => createEmptyStock(w.symbol, w.name || w.symbol));
 }
 
 function renderCards(items) {
   if (!items.length) {
-    listRoot.innerHTML = '<p class="empty">找不到符合條件的追蹤股</p>';
+    listRoot.innerHTML = '<p class="empty">目前沒有追蹤股，請在上方搜尋股票代號或名稱後加入。</p>';
     return;
   }
 
@@ -42,6 +36,11 @@ function renderCards(items) {
     const cashText = item.cashDividend == null ? "還未公佈" : formatMoney(item.cashDividend);
     const rightsText = item.stockDividend == null ? "還未公佈" : `${item.stockDividend} 股`;
     const refText = item.referencePrice == null ? "等待數據中" : formatMoney(item.referencePrice);
+    const priceSourceText = item.priceSource === "realtime"
+      ? "即時"
+      : item.priceSource === "prevClose"
+        ? "昨收"
+        : "收盤";
 
     return `
       <article class="stock-card" data-symbol="${item.symbol}">
@@ -50,7 +49,7 @@ function renderCards(items) {
           <div class="left-col">
             <p class="title">${item.symbol}</p>
             <p>${item.name}</p>
-            <p class="price">${formatMoney(item.currentPrice)}</p>
+            <p class="price">${formatMoney(item.currentPrice)} <small>(${priceSourceText})</small></p>
           </div>
           <div class="right-col">
             <p>除息日期: ${item.nextDividendDate} | 除息額: ${cashText}</p>
@@ -182,13 +181,13 @@ async function updateSuggestions(query) {
 
 async function refreshRealtimePrice() {
   const priceMap = await fetchRealtimePrices(allStocks.map((s) => s.symbol));
-  const updates = new Map(priceMap.map((x) => [x.symbol, x.price]));
+  const updates = new Map(priceMap.map((x) => [x.symbol, x]));
   allStocks = allStocks.map((item) => {
     const realtime = updates.get(item.symbol);
-    if (realtime == null) {
+    if (!realtime || realtime.price == null) {
       return item;
     }
-    return { ...item, currentPrice: realtime };
+    return { ...item, currentPrice: realtime.price, priceSource: realtime.source || "close" };
   });
   // 搜尋框只用來「新增追蹤」，不拿來篩選追蹤清單內容
   renderCards(allStocks);

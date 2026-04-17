@@ -1,5 +1,4 @@
 const TWSE_EXRIGHT_ENDPOINT = "https://www.twse.com.tw/exchangeReport/TWT48U";
-const TWSE_DIVIDEND_ANNOUNCE_ENDPOINT = "https://openapi.twse.com.tw/v1/opendata/t187ap45_L";
 
 function toSymbol(code) {
   const c = String(code || "").trim();
@@ -22,18 +21,6 @@ function toNumber(text) {
 function parseRocDate(text) {
   // 例：115年04月20日 -> 2026/04/20
   const m = String(text || "").match(/(\d{2,3})年(\d{1,2})月(\d{1,2})日/);
-  if (!m) return null;
-  const year = Number(m[1]) + 1911;
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  const dt = new Date(year, month - 1, day);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt;
-}
-
-function parseRocCompactDate(text) {
-  // 例：1150210 -> 2026/02/10
-  const m = String(text || "").match(/^(\d{2,3})(\d{2})(\d{2})$/);
   if (!m) return null;
   const year = Number(m[1]) + 1911;
   const month = Number(m[2]);
@@ -162,30 +149,8 @@ export async function fetchCorporateActionHistory(symbol, years = 5) {
 
 export async function fetchDividendAnnouncementHistory(symbol) {
   const code = String(symbol || "").toUpperCase().replace(".TW", "");
-  if (!code) return [];
-  const res = await fetch(TWSE_DIVIDEND_ANNOUNCE_ENDPOINT);
-  if (!res.ok) {
-    throw new Error(`Fetch dividend announcement failed: HTTP ${res.status}`);
+  if (code) {
+    console.warn("已停用 openapi 股利公告來源，避免 CORS 問題");
   }
-  const rows = await res.json();
-  if (!Array.isArray(rows)) return [];
-
-  return rows
-    .filter((r) => String(r?.["公司代號"] || "").trim() === code)
-    .map((r) => {
-      const dt = parseRocCompactDate(r?.["董事會（擬議）股利分派日"]);
-      const cash = toNumber(r?.["股東配發-盈餘分配之現金股利(元/股)"]) ?? 0;
-      const cashLaw = toNumber(r?.["股東配發-法定盈餘公積發放之現金(元/股)"]) ?? 0;
-      const cashCapital = toNumber(r?.["股東配發-資本公積發放之現金(元/股)"]) ?? 0;
-      const stock = (toNumber(r?.["股東配發-盈餘轉增資配股(元/股)"]) ?? 0)
-        + (toNumber(r?.["股東配發-法定盈餘公積轉增資配股(元/股)"]) ?? 0)
-        + (toNumber(r?.["股東配發-資本公積轉增資配股(元/股)"]) ?? 0);
-      return {
-        date: dt ? formatDateYmd(dt) : `${Number(r?.["股利年度"] || 0) + 1911}/01/01`,
-        type: "股利公告",
-        cashDividend: cash + cashLaw + cashCapital,
-        stockDividend: stock || null
-      };
-    })
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  return [];
 }

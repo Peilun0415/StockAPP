@@ -1,8 +1,7 @@
-import { stockDataset } from "./data.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const LS_KEY_BASE = "stockapp_watchlist_v1";
-const DEFAULT_ITEMS = stockDataset.map((s) => ({ symbol: s.symbol, name: s.name }));
+const DEFAULT_ITEMS = [];
 
 let firestoreDb = null;
 let firestoreApi = null;

@@ -1,8 +1,10 @@
-import { stockDataset, getSignalByRatio, formatMoney, cloneStock } from "./data.js";
 import { fetchRealtimePrice } from "./market-api.js";
 import { fetchCorporateActionHistory, fetchDividendAnnouncementHistory } from "./corporate-actions-api.js";
+import { loadMarketCorporateHistory, loadMarketCorporateSummaries } from "./market-corporate-store.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
+import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
+import { loadStockMasterList } from "./stock-master.js";
 
 const topSymbol = document.querySelector("#detailSymbolTop");
 const topName = document.querySelector("#detailNameTop");
@@ -16,7 +18,7 @@ const authAvatarEl = document.querySelector("#authAvatar");
 
 const params = new URLSearchParams(window.location.search);
 const symbol = (params.get("symbol") || "").toUpperCase();
-const stock = cloneStock(stockDataset.find((s) => s.symbol === symbol) || stockDataset[0]);
+const stock = createEmptyStock(symbol || "N/A", symbol || "N/A");
 let activeRange = 1;
 
 function parseDateYmd(text) {
@@ -97,12 +99,39 @@ async function initialize() {
   const returnTo = window.location.pathname + window.location.search;
   await requireAuth(returnTo);
 
+  try {
+    const master = await loadStockMasterList();
+    const found = master.find((x) => x.symbol === stock.symbol);
+    if (found?.name) {
+      stock.name = found.name;
+    }
+  } catch (error) {
+    console.warn("載入股票主檔失敗，明細名稱改用代號", error);
+  }
+
+  try {
+    const sumMap = await loadMarketCorporateSummaries([stock.symbol]);
+    const m = sumMap.get(stock.symbol);
+    if (m) {
+      stock.name = m.name || stock.name;
+      stock.nextDividendDate = m.nextDividendDate ?? stock.nextDividendDate;
+      stock.nextRightsDate = m.nextRightsDate ?? stock.nextRightsDate;
+      stock.cashDividend = m.cashDividend ?? stock.cashDividend;
+      stock.stockDividend = m.stockDividend ?? stock.stockDividend;
+    }
+  } catch (error) {
+    console.warn("讀取市場除權息摘要失敗", error);
+  }
+
   const realtime = await fetchRealtimePrice(stock.symbol);
   if (realtime != null) {
     stock.currentPrice = realtime;
   }
   try {
-    stock.history = await fetchCorporateActionHistory(stock.symbol, 10);
+    stock.history = await loadMarketCorporateHistory(stock.symbol);
+    if (!stock.history.length) {
+      stock.history = await fetchCorporateActionHistory(stock.symbol, 10);
+    }
     if (!stock.history.length) {
       stock.history = await fetchDividendAnnouncementHistory(stock.symbol);
     }
