@@ -1,6 +1,6 @@
 import { fetchRealtimePrice } from "./market-api.js";
 import { fetchCorporateActionHistory, fetchDividendAnnouncementHistory } from "./corporate-actions-api.js";
-import { loadMarketCorporateHistory, loadMarketCorporateSummaries } from "./market-corporate-store.js";
+import { loadMarketCorporateHistory, loadMarketCorporateSummaries, saveManualCorporateEvent } from "./market-corporate-store.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
@@ -16,6 +16,12 @@ const authBtn = document.querySelector("#authBtn");
 const authUserEl = document.querySelector("#authUser");
 const authAvatarEl = document.querySelector("#authAvatar");
 const pageLoadingEl = document.querySelector("#pageLoading");
+const openManualEventBtn = document.querySelector("#openManualEventBtn");
+const manualEventDialog = document.querySelector("#manualEventDialog");
+const manualEventForm = document.querySelector("#manualEventForm");
+const manualEventSymbol = document.querySelector("#manualEventSymbol");
+const cancelManualEventBtn = document.querySelector("#cancelManualEventBtn");
+const submitManualEventBtn = document.querySelector("#submitManualEventBtn");
 
 const params = new URLSearchParams(window.location.search);
 const symbol = (params.get("symbol") || "").toUpperCase();
@@ -57,6 +63,184 @@ function calcSpreadRatio(currentPrice, referencePrice) {
   return Number((((current - reference) / current) * 100).toFixed(4));
 }
 
+function normalizeDateInputToYmd(value) {
+  const t = String(value || "").trim();
+  if (!t) return "";
+  const m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  return `${m[1]}/${m[2]}/${m[3]}`;
+}
+
+function calcReferencePrice(basePrice, cashDividend, stockDividend, typeLabel) {
+  const base = Number(basePrice);
+  if (!Number.isFinite(base)) return null;
+  const cash = Number.isFinite(Number(cashDividend)) ? Number(cashDividend) : 0;
+  const stockDiv = Number.isFinite(Number(stockDividend)) ? Number(stockDividend) : 0;
+  const factor = 1 + stockDiv / 10;
+  if (typeLabel === "權息") {
+    if (factor <= 0) return null;
+    return Number(((base - cash) / factor).toFixed(4));
+  }
+  if (typeLabel === "息") {
+    return Number((base - cash).toFixed(4));
+  }
+  if (typeLabel === "權") {
+    if (factor <= 0) return null;
+    return Number((base / factor).toFixed(4));
+  }
+  return null;
+}
+
+function upsertHistoryEvent(event) {
+  const next = [...(stock.history || [])];
+  const idx = next.findIndex((x) => x.date === event.date && (x.type || "--") === (event.type || "--"));
+  if (idx >= 0) {
+    next[idx] = event;
+  } else {
+    next.push(event);
+  }
+  next.sort((a, b) => (a.date < b.date ? 1 : -1));
+  stock.history = next;
+}
+
+function resetManualForm() {
+  if (!manualEventForm) return;
+  manualEventForm.reset();
+}
+
+function bindManualEventForm() {
+  if (!openManualEventBtn || !manualEventDialog || !manualEventForm) return;
+  openManualEventBtn.addEventListener("click", () => {
+    if (manualEventSymbol) {
+      manualEventSymbol.textContent = `${stock.symbol} ${stock.name || ""}`.trim();
+    }
+    manualEventDialog.showModal();
+  });
+  cancelManualEventBtn?.addEventListener("click", () => {
+    manualEventDialog.close();
+  });
+  manualEventDialog.addEventListener("click", (event) => {
+    if (event.target === manualEventDialog) {
+      manualEventDialog.close();
+    }
+  });
+  manualEventForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fd = new FormData(manualEventForm);
+    const anchorClose = Number(fd.get("anchorClose"));
+    const cashRaw = String(fd.get("cashDividend") || "").trim();
+    const stockRaw = String(fd.get("stockDividend") || "").trim();
+    const dividendDate = normalizeDateInputToYmd(fd.get("dividendDate"));
+    const rightsDate = normalizeDateInputToYmd(fd.get("rightsDate"));
+    const hasCash = cashRaw !== "";
+    const hasStock = stockRaw !== "";
+    if (!Number.isFinite(anchorClose) || anchorClose <= 0) {
+      alert("請填入有效的除息前股價。");
+      return;
+    }
+    if (!hasCash && !hasStock) {
+      alert("現金股利與股票股利至少要填一項。");
+      return;
+    }
+    if (hasCash && !dividendDate) {
+      alert("有填現金股利時，請填除息日。");
+      return;
+    }
+    if (hasStock && !rightsDate) {
+      alert("有填股票股利時，請填除權日。");
+      return;
+    }
+    const cashDividend = hasCash ? Number(cashRaw) : null;
+    const stockDividend = hasStock ? Number(stockRaw) : null;
+    if ((hasCash && !Number.isFinite(cashDividend)) || (hasStock && !Number.isFinite(stockDividend))) {
+      alert("請確認股利欄位是有效數字。");
+      return;
+    }
+    const payloads = [];
+    if (hasCash && hasStock && dividendDate && rightsDate && dividendDate === rightsDate) {
+      const type = "權息";
+      payloads.push({
+        name: stock.name || stock.symbol,
+        date: dividendDate,
+        type,
+        typeRaw: "manual_form",
+        cashDividend,
+        stockDividend,
+        anchorClose,
+        referenceAnchorDate: null,
+        referencePrice: calcReferencePrice(anchorClose, cashDividend, stockDividend, type),
+        referencePriceMode: "manual_anchor_input",
+        source: "manual_user_input"
+      });
+    } else {
+      if (hasCash && dividendDate) {
+        const type = "息";
+        payloads.push({
+          name: stock.name || stock.symbol,
+          date: dividendDate,
+          type,
+          typeRaw: "manual_form",
+          cashDividend,
+          stockDividend: null,
+          anchorClose,
+          referenceAnchorDate: null,
+          referencePrice: calcReferencePrice(anchorClose, cashDividend, null, type),
+          referencePriceMode: "manual_anchor_input",
+          source: "manual_user_input"
+        });
+      }
+      if (hasStock && rightsDate) {
+        const type = "權";
+        payloads.push({
+          name: stock.name || stock.symbol,
+          date: rightsDate,
+          type,
+          typeRaw: "manual_form",
+          cashDividend: null,
+          stockDividend,
+          anchorClose,
+          referenceAnchorDate: null,
+          referencePrice: calcReferencePrice(anchorClose, null, stockDividend, type),
+          referencePriceMode: "manual_anchor_input",
+          source: "manual_user_input"
+        });
+      }
+    }
+    if (!payloads.length) {
+      alert("請檢查日期與股利欄位。");
+      return;
+    }
+    try {
+      if (submitManualEventBtn) {
+        submitManualEventBtn.disabled = true;
+      }
+      await Promise.all(payloads.map((payload) => saveManualCorporateEvent(stock.symbol, payload)));
+      payloads.forEach((payload) => {
+        upsertHistoryEvent({
+          date: payload.date,
+          type: payload.type,
+          cashDividend: payload.cashDividend,
+          stockDividend: payload.stockDividend,
+          referencePrice: payload.referencePrice,
+          referenceAnchorDate: payload.referenceAnchorDate,
+          anchorClose: payload.anchorClose
+        });
+      });
+      renderHistory(stock);
+      manualEventDialog.close();
+      resetManualForm();
+      alert(`已新增 ${payloads.length} 筆歷史除權息資料。`);
+    } catch (error) {
+      console.error(error);
+      alert("寫入失敗，請確認你有 Firestore 寫入權限。");
+    } finally {
+      if (submitManualEventBtn) {
+        submitManualEventBtn.disabled = false;
+      }
+    }
+  });
+}
+
 function renderSummary(item) {
   const signal = getSignalByRatio(item.spreadRatio);
   const ratioText = item.spreadRatio == null ? "待定" : `${item.spreadRatio}%`;
@@ -91,7 +275,7 @@ function renderHistory(item) {
     const tone = signal?.key || "white";
     const refLine = h.referencePrice == null
       ? "除權息參考價: 等待數據中"
-      : `除權息參考價: ${formatMoney(h.referencePrice)}（基準日 ${h.referenceAnchorDate || "--"} 收盤）`;
+      : `除權息參考價: ${formatMoney(h.referencePrice)}`;
     return `
       <article class="history-card ${tone}">
         <span class="timeline-dot ${tone}"></span>
@@ -182,6 +366,7 @@ async function boot() {
         }
       }
     });
+    bindManualEventForm();
     await initialize();
   } finally {
     setPageLoading(false);

@@ -30,6 +30,7 @@
 
     <section class="time-filter">
       <h2>時間除權息紀錄</h2>
+      <button id="openManualEventBtn" type="button" class="manual-event-btn">+ 新增歷史資訊</button>
       <div class="pills" id="rangePills">
         <button type="button" class="pill active" data-range="1">近 1 年</button>
         <button type="button" class="pill" data-range="3">近 3 年</button>
@@ -43,6 +44,32 @@
       <div id="historyList" class="history-list"></div>
     </section>
   </main>
+
+  <dialog id="manualEventDialog" class="manual-event-dialog">
+    <form id="manualEventForm" method="dialog" class="manual-event-form">
+      <h3>新增歷史除權息資料</h3>
+      <p class="manual-hint">股票：<span id="manualEventSymbol">--</span></p>
+      <label>除息前股價
+        <input name="anchorClose" type="number" step="0.0001" min="0" required />
+      </label>
+      <label>現金股利（元）
+        <input name="cashDividend" type="number" step="0.0001" min="0" />
+      </label>
+      <label>除息日
+        <input name="dividendDate" type="date" />
+      </label>
+      <label>股票股利（股）
+        <input name="stockDividend" type="number" step="0.0001" min="0" />
+      </label>
+      <label>除權日
+        <input name="rightsDate" type="date" />
+      </label>
+      <div class="manual-actions">
+        <button type="button" id="cancelManualEventBtn" class="manual-cancel-btn">取消</button>
+        <button type="submit" id="submitManualEventBtn" class="manual-submit-btn">送出寫入</button>
+      </div>
+    </form>
+  </dialog>
 
   <script>
     window.__MIS_PROXY_ENDPOINT__ = "https://twse-mis-proxy.halloween1456.workers.dev/";

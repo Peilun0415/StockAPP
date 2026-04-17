@@ -483,6 +483,25 @@ body {
   font-weight: 700;
 }
 
+.manual-event-btn {
+  border: 1px solid #cfe0ff;
+  background: #eef4ff;
+  color: #2f4f88;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.manual-event-btn:hover {
+  background: #e2edff;
+  border-color: #b7ccf3;
+  transform: translateY(-1px);
+}
+
 .pills {
   display: flex;
   gap: 8px;
@@ -583,6 +602,71 @@ h2 {
   text-align: center;
   color: var(--muted);
   margin-top: 32px;
+}
+
+.manual-event-dialog {
+  width: min(92vw, 420px);
+  border: none;
+  border-radius: 14px;
+  padding: 0;
+  box-shadow: 0 18px 40px rgba(16, 24, 40, 0.2);
+}
+
+.manual-event-dialog::backdrop {
+  background: rgba(11, 18, 33, 0.35);
+}
+
+.manual-event-form {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.manual-event-form h3 {
+  margin: 0;
+}
+
+.manual-hint {
+  margin: 0;
+  color: #5f6672;
+  font-size: 13px;
+}
+
+.manual-event-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  color: #475365;
+}
+
+.manual-event-form input {
+  border: 1px solid #d5deec;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.manual-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.manual-cancel-btn,
+.manual-submit-btn {
+  border-radius: 10px;
+  padding: 7px 12px;
+  border: 1px solid #d5deec;
+  background: #fff;
+  cursor: pointer;
+}
+
+.manual-submit-btn {
+  border-color: #9db9ea;
+  background: #e7f0ff;
+  color: #264b88;
+  font-weight: 700;
 }
 
 .login-page {

@@ -84,9 +84,11 @@ function calcSpreadRatio(currentPrice, referencePrice) {
 function applyPreviousEventInfo(item) {
   const prev = item.previousEvent;
   if (!prev) return { ...item, previousSpreadRatio: null };
+  // 上一期價差比應以該期事件資料計算，不應混用目前即時價。
+  const eventSpreadRatio = calcSpreadRatio(prev.anchorClose, prev.referencePrice);
   return {
     ...item,
-    previousSpreadRatio: calcSpreadRatio(item.currentPrice, prev.referencePrice)
+    previousSpreadRatio: eventSpreadRatio
   };
 }
 

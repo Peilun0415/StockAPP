@@ -123,3 +123,34 @@ export async function loadLatestCompletedEvents(symbols) {
   }));
   return out;
 }
+
+function eventDocId(symbol, dateText, typeText) {
+  const d = String(dateText || "").replaceAll("/", "");
+  return `${String(symbol || "").replace(/\./g, "_")}_${d}_${typeText}`;
+}
+
+/**
+ * 寫入手動維護的除權息事件（marketCorporateActions/{symbol}/events/{eventId}）
+ */
+export async function saveManualCorporateEvent(symbol, eventPayload) {
+  const s = String(symbol || "").toUpperCase();
+  if (!s) {
+    throw new Error("缺少股票代號");
+  }
+  if (!eventPayload?.date || !eventPayload?.type) {
+    throw new Error("缺少必要欄位 date/type");
+  }
+  const fb = await ensureFirestore();
+  if (!fb) {
+    throw new Error("Firebase 尚未設定，無法寫入");
+  }
+  const { db, api } = fb;
+  const eventId = eventDocId(s, eventPayload.date, eventPayload.type);
+  const ref = api.doc(db, "marketCorporateActions", s, "events", eventId);
+  await api.setDoc(ref, {
+    ...eventPayload,
+    symbol: s,
+    syncedAt: api.serverTimestamp()
+  }, { merge: true });
+  return eventId;
+}
