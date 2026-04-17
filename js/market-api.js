@@ -22,33 +22,40 @@ const CACHE_MS = 5 * 60 * 1000; // 5 minutes
 const TWSE_DAY_ALL_ENDPOINTS = [
   "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json"
 ];
-// MIS 在瀏覽器端常被 CORS 擋下，預設停用以避免 console 噪音與錯誤。
-const ENABLE_MIS_REALTIME = false;
+// 方案 C：改由外部 proxy（Cloudflare/Vercel/Render 等）代理 MIS，避免瀏覽器 CORS。
+// 可在 index.html 載入前設定：window.__MIS_PROXY_ENDPOINT__ = "https://your-proxy.example.com/twse-mis";
+function readMisProxyEndpoint() {
+  if (typeof window === "undefined") return "";
+  const byWindow = String(window.__MIS_PROXY_ENDPOINT__ || "").trim();
+  if (byWindow) return byWindow;
+  try {
+    return String(window.localStorage?.getItem("misProxyEndpoint") || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+const MIS_PROXY_ENDPOINT = readMisProxyEndpoint();
+const ENABLE_MIS_REALTIME = Boolean(MIS_PROXY_ENDPOINT);
 
 async function fetchMisRealtimePrices(symbols) {
-  const exList = symbols.map(toMisExCh).filter(Boolean);
-  if (!exList.length) return new Map();
-  const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?json=1&delay=0&ex_ch=${encodeURIComponent(exList.join("|"))}`;
+  if (!ENABLE_MIS_REALTIME) return new Map();
+  const list = (symbols || []).map(normalizeSymbol).filter(Boolean);
+  if (!list.length) return new Map();
+  const url = `${MIS_PROXY_ENDPOINT}?symbols=${encodeURIComponent(list.join(","))}`;
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`MIS fetch failed: HTTP ${res.status}`);
+    throw new Error(`MIS proxy fetch failed: HTTP ${res.status}`);
   }
   const payload = await res.json();
-  const msgArray = Array.isArray(payload?.msgArray) ? payload.msgArray : [];
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
   const map = new Map();
-  for (const row of msgArray) {
-    const code = String(row?.c || "").trim();
-    if (!code) continue;
-    // z: 當盤最新成交價，若無成交時可用 y 昨收
-    const latest = toNumber(row?.z);
-    const prevClose = toNumber(row?.y);
-    const symbol = `${code}.TW`;
-    if (typeof latest === "number") {
-      map.set(symbol, { price: latest, source: "realtime" });
-      continue;
-    }
-    if (typeof prevClose === "number") {
-      map.set(symbol, { price: prevClose, source: "prevClose" });
+  for (const row of rows) {
+    const symbol = normalizeSymbol(row?.symbol);
+    if (!symbol) continue;
+    const price = toNumber(row?.price);
+    const source = row?.source === "realtime" ? "realtime" : "prevClose";
+    if (typeof price === "number") {
+      map.set(symbol, { price, source });
     }
   }
   return map;
