@@ -90,7 +90,16 @@ async function fetchClosePrices(symbols) {
 }
 
 async function getFallbackPriceMap(symbols) {
-  if (cachedPriceMap && Date.now() - cachedPriceMapAt < CACHE_MS) {
+  const wanted = new Set((symbols || []).map((s) => normalizeSymbol(s)));
+  const hasAllWanted = (() => {
+    if (!cachedPriceMap) return false;
+    for (const symbol of wanted) {
+      if (!cachedPriceMap.has(symbol)) return false;
+    }
+    return true;
+  })();
+
+  if (cachedPriceMap && Date.now() - cachedPriceMapAt < CACHE_MS && hasAllWanted) {
     return cachedPriceMap;
   }
   try {

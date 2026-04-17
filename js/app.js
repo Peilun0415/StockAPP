@@ -65,22 +65,56 @@ function renderCards(items) {
 
 async function enrichAnnualCorporateActions(items) {
   if (!items.length) return items;
+  const symbols = items.map((x) => x.symbol);
+  let marketMap = new Map();
   try {
-    const actionMap = await fetchAnnualCorporateActions(items.map((x) => x.symbol));
+    marketMap = await loadMarketCorporateSummaries(symbols);
+  } catch (error) {
+    console.warn("讀取市場除權息快取失敗", error);
+  }
+
+  try {
+    const actionMap = await fetchAnnualCorporateActions(symbols);
     return items.map((item) => {
+      const market = marketMap.get(item.symbol);
       const action = actionMap.get(item.symbol);
-      if (!action) return item;
+      let next = { ...item };
+
+      if (market) {
+        next = {
+          ...next,
+          name: market.name || next.name,
+          nextDividendDate: market.nextDividendDate ?? next.nextDividendDate,
+          cashDividend: market.cashDividend ?? next.cashDividend,
+          nextRightsDate: market.nextRightsDate ?? next.nextRightsDate,
+          stockDividend: market.stockDividend ?? next.stockDividend
+        };
+      }
+
+      if (!action) return next;
       return {
-        ...item,
-        nextDividendDate: action.nextDividendDate ?? item.nextDividendDate,
-        cashDividend: action.cashDividend ?? item.cashDividend,
-        nextRightsDate: action.nextRightsDate ?? item.nextRightsDate,
-        stockDividend: action.stockDividend ?? item.stockDividend
+        ...next,
+        // 若資料庫沒有值，再補當下 TWT48U
+        nextDividendDate: next.nextDividendDate === "還未公佈" ? (action.nextDividendDate ?? next.nextDividendDate) : next.nextDividendDate,
+        cashDividend: next.cashDividend == null ? action.cashDividend : next.cashDividend,
+        nextRightsDate: next.nextRightsDate === "還未公佈" ? (action.nextRightsDate ?? next.nextRightsDate) : next.nextRightsDate,
+        stockDividend: next.stockDividend == null ? action.stockDividend : next.stockDividend
       };
     });
   } catch (error) {
     console.warn("載入年度除權息資料失敗，改用現有資料", error);
-    return items;
+    return items.map((item) => {
+      const market = marketMap.get(item.symbol);
+      if (!market) return item;
+      return {
+        ...item,
+        name: market.name || item.name,
+        nextDividendDate: market.nextDividendDate ?? item.nextDividendDate,
+        cashDividend: market.cashDividend ?? item.cashDividend,
+        nextRightsDate: market.nextRightsDate ?? item.nextRightsDate,
+        stockDividend: market.stockDividend ?? item.stockDividend
+      };
+    });
   }
 }
 
