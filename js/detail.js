@@ -15,11 +15,17 @@ const rangePills = document.querySelector("#rangePills");
 const authBtn = document.querySelector("#authBtn");
 const authUserEl = document.querySelector("#authUser");
 const authAvatarEl = document.querySelector("#authAvatar");
+const pageLoadingEl = document.querySelector("#pageLoading");
 
 const params = new URLSearchParams(window.location.search);
 const symbol = (params.get("symbol") || "").toUpperCase();
 const stock = createEmptyStock(symbol || "N/A", symbol || "N/A");
 let activeRange = 1;
+
+function setPageLoading(show) {
+  if (!pageLoadingEl) return;
+  pageLoadingEl.classList.toggle("is-hidden", !show);
+}
 
 function parseDateYmd(text) {
   const [y, m, d] = text.split("/").map((x) => Number(x));
@@ -61,11 +67,7 @@ function renderSummary(item) {
   topName.textContent = item.name;
 
   summaryRoot.innerHTML = `
-    <h1>${item.name} (${item.symbol})</h1>
     <h2>當前價格: ${formatMoney(item.currentPrice)}</h2>
-    <p>除權息參考基準價: ${refText}</p>
-    <p>當前價差比: ${ratioText}</p>
-    <p><span class="badge ${signal.key}">${signalText}</span></p>
   `;
 }
 
@@ -166,19 +168,24 @@ async function initialize() {
 }
 
 async function boot() {
-  initGoogleAuthUI({
-    authBtn,
-    authUserEl,
-    avatarEl: authAvatarEl,
-    onUserChanged: (u) => {
-      // 登出後直接回到登入頁，避免在未登入狀態停留
-      if (!u && isAuthAvailable()) {
-        const returnTo = window.location.pathname + window.location.search;
-        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+  try {
+    setPageLoading(true);
+    initGoogleAuthUI({
+      authBtn,
+      authUserEl,
+      avatarEl: authAvatarEl,
+      onUserChanged: (u) => {
+        // 登出後直接回到登入頁，避免在未登入狀態停留
+        if (!u && isAuthAvailable()) {
+          const returnTo = window.location.pathname + window.location.search;
+          window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+        }
       }
-    }
-  });
-  await initialize();
+    });
+    await initialize();
+  } finally {
+    setPageLoading(false);
+  }
 }
 
 boot();

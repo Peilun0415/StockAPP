@@ -78,3 +78,48 @@ export async function loadMarketCorporateHistory(symbol) {
     return [];
   }
 }
+
+function formatTodayYmd() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}/${m}/${day}`;
+}
+
+/**
+ * 讀取每檔股票「上一期（最近已發生）」除權息事件。
+ */
+export async function loadLatestCompletedEvents(symbols) {
+  const list = (symbols || []).map((s) => String(s || "").toUpperCase()).filter(Boolean);
+  if (!list.length) return new Map();
+  const fb = await ensureFirestore();
+  if (!fb) return new Map();
+  const { db, api } = fb;
+  const todayYmd = formatTodayYmd();
+  const out = new Map();
+  await Promise.all(list.map(async (symbol) => {
+    try {
+      const ref = api.collection(db, "marketCorporateActions", symbol, "events");
+      const q = api.query(
+        ref,
+        api.where("date", "<=", todayYmd),
+        api.orderBy("date", "desc"),
+        api.limit(1)
+      );
+      const snap = await api.getDocs(q);
+      if (snap.empty) return;
+      const x = snap.docs[0].data();
+      out.set(symbol, {
+        date: x.date ?? null,
+        type: x.type || x.typeRaw || "--",
+        referencePrice: x.referencePrice ?? null,
+        anchorClose: x.anchorClose ?? null,
+        referenceAnchorDate: x.referenceAnchorDate ?? null
+      });
+    } catch (error) {
+      console.warn("讀取上一期除權息事件失敗", symbol, error);
+    }
+  }));
+  return out;
+}

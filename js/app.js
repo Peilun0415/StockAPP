@@ -1,7 +1,7 @@
 import { loadWatchlist, addWatchStock, removeWatchStock } from "./watchlist-store.js";
 import { fetchRealtimePrices } from "./market-api.js";
 import { fetchAnnualCorporateActions } from "./corporate-actions-api.js";
-import { loadMarketCorporateSummaries } from "./market-corporate-store.js";
+import { loadMarketCorporateSummaries, loadLatestCompletedEvents } from "./market-corporate-store.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
@@ -13,6 +13,7 @@ const authBtn = document.querySelector("#authBtn");
 const authUserEl = document.querySelector("#authUser");
 const authAvatarEl = document.querySelector("#authAvatar");
 const searchSuggestRoot = document.querySelector("#searchSuggest");
+const pageLoadingEl = document.querySelector("#pageLoading");
 
 let allStocks = [];
 let currentUid = null;
@@ -20,11 +21,34 @@ let loadToken = 0;
 let stockMaster = [];
 let masterLoadingPromise = null;
 
+function setPageLoading(show) {
+  if (!pageLoadingEl) return;
+  pageLoadingEl.classList.toggle("is-hidden", !show);
+}
+
 function parseDateYmd(text) {
   const [y, m, d] = String(text || "").split("/").map((x) => Number(x));
   if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
   const dt = new Date(y, m - 1, d);
   return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function getUpcomingEventLabel(nextDividendDate, nextRightsDate) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const limit = new Date(today);
+  limit.setDate(limit.getDate() + 30);
+  const candidates = [nextDividendDate, nextRightsDate]
+    .map((d) => parseDateYmd(d))
+    .filter((d) => d instanceof Date && !Number.isNaN(d.getTime()))
+    .filter((d) => d.getTime() >= today.getTime() && d.getTime() <= limit.getTime())
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (!candidates.length) return "";
+  const nearest = candidates[0];
+  const diffDays = Math.floor((nearest.getTime() - today.getTime()) / 86400000);
+  if (diffDays === 0) return "今日除權息";
+  if (diffDays === 1) return "明日除權息";
+  return `${diffDays} 天內除權息`;
 }
 
 function calcReferencePrice(basePrice, cashDividend, stockDividend, hasDividend, hasRights) {
@@ -54,6 +78,15 @@ function calcSpreadRatio(currentPrice, referencePrice) {
   if (!Number.isFinite(current) || current <= 0) return null;
   if (!Number.isFinite(reference)) return null;
   return Number((((current - reference) / current) * 100).toFixed(4));
+}
+
+function applyPreviousEventInfo(item) {
+  const prev = item.previousEvent;
+  if (!prev) return { ...item, previousSpreadRatio: null };
+  return {
+    ...item,
+    previousSpreadRatio: calcSpreadRatio(item.currentPrice, prev.referencePrice)
+  };
 }
 
 function applyCorporateReference(item) {
@@ -132,7 +165,13 @@ function renderCards(items) {
     const rightsText = item.stockDividend == null ? "還未公佈" : `${item.stockDividend} 股`;
     const refText = item.referencePrice == null ? "等待數據中" : formatMoney(item.referencePrice);
     const refTitle = item.referenceTitle || "除息參考價";
+    const hasEventDate = item.nextDividendDate !== "還未公佈" || item.nextRightsDate !== "還未公佈";
+    const upcomingEventLabel = getUpcomingEventLabel(item.nextDividendDate, item.nextRightsDate);
     const showSignal = item.referencePrice != null;
+    const previousRatioText = item.previousSpreadRatio == null ? "待定" : `${item.previousSpreadRatio}%`;
+    const previousRefText = item.previousEvent?.referencePrice == null ? "等待數據中" : formatMoney(item.previousEvent.referencePrice);
+    const previousDateText = item.previousEvent?.date || "--";
+    const showPreviousEventBox = Boolean(item.previousEvent?.date || item.previousEvent?.referencePrice != null);
     const priceSourceText = item.priceSource === "realtime"
       ? "即時"
       : item.priceSource === "prevClose"
@@ -144,15 +183,25 @@ function renderCards(items) {
         <button class="delete-btn" type="button" data-delete="${item.symbol}" aria-label="刪除追蹤股">✕</button>
         <a class="card-link" href="./stock.html?symbol=${encodeURIComponent(item.symbol)}">
           <div class="left-col">
+            ${upcomingEventLabel ? `<p><span class="event-soon-tag">${upcomingEventLabel}</span></p>` : ""}
             <p class="title">${item.symbol}</p>
             <p>${item.name}</p>
             <p class="price">${formatMoney(item.currentPrice)} <small>(${priceSourceText})</small></p>
           </div>
           <div class="right-col">
-            <p>除息日期: ${item.nextDividendDate} | 除息額: ${cashText}</p>
-            <p>除權日期: ${item.nextRightsDate} | 股數: ${rightsText}</p>
-            <p>${refTitle}: ${refText}</p>
-            ${showSignal ? `<p><span class="badge ${signal.key}">${signal.icon} ${signal.text} | 價差 ${ratioText}</span></p>` : ""}
+            <div class="event-grid">
+              <p class="info-chip">除息日期: ${item.nextDividendDate} | 除息額: ${cashText}</p>
+              <p class="info-chip">除權日期: ${item.nextRightsDate} | 股數: ${rightsText}</p>
+            </div>
+            ${hasEventDate ? `<p class="current-ref-line">${refTitle}: ${refText}</p>` : ""}
+            ${showSignal ? `<p class="current-signal-line"><span class="badge ${signal.key}">${signal.icon} ${signal.text} | 價差 ${ratioText}</span></p>` : ""}
+            ${showPreviousEventBox ? `
+              <div class="previous-event-box">
+                <p class="previous-event-title">上一期除權息（${previousDateText}）</p>
+                <p>參考價: ${previousRefText}</p>
+                <p>價差比: ${previousRatioText}</p>
+              </div>
+            ` : ""}
           </div>
         </a>
       </article>
@@ -164,10 +213,16 @@ async function enrichAnnualCorporateActions(items) {
   if (!items.length) return items;
   const symbols = items.map((x) => x.symbol);
   let marketMap = new Map();
+  let previousEventMap = new Map();
   try {
     marketMap = await loadMarketCorporateSummaries(symbols);
   } catch (error) {
     console.warn("讀取市場除權息快取失敗", error);
+  }
+  try {
+    previousEventMap = await loadLatestCompletedEvents(symbols);
+  } catch (error) {
+    console.warn("讀取上一期除權息資料失敗", error);
   }
 
   try {
@@ -188,31 +243,35 @@ async function enrichAnnualCorporateActions(items) {
           referencePrice: market.referencePrice ?? next.referencePrice
         };
       }
+      const previousEvent = previousEventMap.get(item.symbol) ?? null;
+      next = applyPreviousEventInfo({ ...next, previousEvent });
 
       if (!action) return next;
-      return applyCorporateReference({
+      return applyPreviousEventInfo(applyCorporateReference({
         ...next,
         // 若資料庫沒有值，再補當下 TWT48U
         nextDividendDate: next.nextDividendDate === "還未公佈" ? (action.nextDividendDate ?? next.nextDividendDate) : next.nextDividendDate,
         cashDividend: next.cashDividend == null ? action.cashDividend : next.cashDividend,
         nextRightsDate: next.nextRightsDate === "還未公佈" ? (action.nextRightsDate ?? next.nextRightsDate) : next.nextRightsDate,
         stockDividend: next.stockDividend == null ? action.stockDividend : next.stockDividend
-      });
+      }));
     });
   } catch (error) {
     console.warn("載入年度除權息資料失敗，改用現有資料", error);
     return items.map((item) => {
       const market = marketMap.get(item.symbol);
-      if (!market) return item;
-      return applyCorporateReference({
+      const previousEvent = previousEventMap.get(item.symbol) ?? null;
+      if (!market) return applyPreviousEventInfo({ ...item, previousEvent });
+      return applyPreviousEventInfo(applyCorporateReference({
         ...item,
+        previousEvent,
         name: market.name || item.name,
         nextDividendDate: market.nextDividendDate ?? item.nextDividendDate,
         cashDividend: market.cashDividend ?? item.cashDividend,
         nextRightsDate: market.nextRightsDate ?? item.nextRightsDate,
         stockDividend: market.stockDividend ?? item.stockDividend,
         referencePrice: market.referencePrice ?? item.referencePrice
-      });
+      }));
     });
   }
 }
@@ -320,7 +379,7 @@ async function refreshRealtimePrice() {
     if (!realtime || realtime.price == null) {
       return item;
     }
-    return applyCorporateReference({ ...item, currentPrice: realtime.price, priceSource: realtime.source || "close" });
+    return applyPreviousEventInfo(applyCorporateReference({ ...item, currentPrice: realtime.price, priceSource: realtime.source || "close" }));
   });
   // 搜尋框只用來「新增追蹤」，不拿來篩選追蹤清單內容
   renderCards(allStocks);
@@ -429,32 +488,53 @@ if (searchSuggestRoot) {
 }
 
 async function boot() {
-  const returnTo = window.location.pathname + window.location.search;
-  const user = await requireAuth(returnTo);
-  // 未登入已被跳轉；若 Firebase 未設定則 user 可能為 null
-  if (user?.uid) {
-    currentUid = user.uid;
-  }
-
-  // 背景先載入股票主檔，讓搜尋建議更快出現
-  ensureMasterLoaded();
-
-  initGoogleAuthUI({
-    authBtn,
-    authUserEl,
-    avatarEl: authAvatarEl,
-    onUserChanged: async (u) => {
-      currentUid = u?.uid ?? null;
-      if (!u && isAuthAvailable()) {
-        const returnTo = window.location.pathname + window.location.search;
-        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
-        return;
-      }
-      if (currentUid) {
-        await reloadForCurrentUser();
-      }
+  try {
+    setPageLoading(true);
+    const returnTo = window.location.pathname + window.location.search;
+    const user = await requireAuth(returnTo);
+    // 未登入已被跳轉；若 Firebase 未設定則 user 可能為 null
+    if (user?.uid) {
+      currentUid = user.uid;
     }
-  });
+
+    // 背景先載入股票主檔，讓搜尋建議更快出現
+    ensureMasterLoaded();
+
+    // 首次進頁：等股票卡片資料載入並渲染後，再關閉 loading
+    if (currentUid) {
+      await reloadForCurrentUser();
+    } else {
+      setPageLoading(false);
+    }
+
+    initGoogleAuthUI({
+      authBtn,
+      authUserEl,
+      avatarEl: authAvatarEl,
+      onUserChanged: async (u) => {
+        currentUid = u?.uid ?? null;
+        if (!u && isAuthAvailable()) {
+          const returnTo = window.location.pathname + window.location.search;
+          window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+          return;
+        }
+        if (currentUid) {
+          setPageLoading(true);
+          try {
+            await reloadForCurrentUser();
+          } finally {
+            setPageLoading(false);
+          }
+        } else {
+          setPageLoading(false);
+        }
+      }
+    });
+  } finally {
+    if (!currentUid) {
+      setPageLoading(false);
+    }
+  }
 }
 
 boot();
