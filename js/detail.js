@@ -73,12 +73,16 @@ function renderHistory(item) {
   historyRoot.innerHTML = filtered.map((h) => {
     const cashText = h.cashDividend == null ? "還未公佈" : formatMoney(h.cashDividend);
     const stockText = h.stockDividend == null ? "還未公佈" : `${h.stockDividend} 股`;
+    const refLine = h.referencePrice == null
+      ? "除權息參考價: 尚未固定（排程同步後顯示）"
+      : `除權息參考價: ${formatMoney(h.referencePrice)}（基準日 ${h.referenceAnchorDate || "--"} 收盤）`;
     return `
       <article class="history-card white">
         <span class="timeline-dot white"></span>
         <p><strong>${h.date} 除權息完畢</strong></p>
         <p>類型: ${h.type || "--"}</p>
         <p>現金股利: ${cashText} | 股票股利: ${stockText}</p>
+        <p>${refLine}</p>
       </article>
     `;
   }).join("");
@@ -118,6 +122,9 @@ async function initialize() {
       stock.nextRightsDate = m.nextRightsDate ?? stock.nextRightsDate;
       stock.cashDividend = m.cashDividend ?? stock.cashDividend;
       stock.stockDividend = m.stockDividend ?? stock.stockDividend;
+      if (m.referencePrice != null) {
+        stock.referencePrice = m.referencePrice;
+      }
     }
   } catch (error) {
     console.warn("讀取市場除權息摘要失敗", error);

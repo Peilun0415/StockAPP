@@ -22,6 +22,8 @@ const CACHE_MS = 5 * 60 * 1000; // 5 minutes
 const TWSE_DAY_ALL_ENDPOINTS = [
   "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json"
 ];
+// MIS 在瀏覽器端常被 CORS 擋下，預設停用以避免 console 噪音與錯誤。
+const ENABLE_MIS_REALTIME = false;
 
 async function fetchMisRealtimePrices(symbols) {
   const exList = symbols.map(toMisExCh).filter(Boolean);
@@ -119,11 +121,13 @@ async function getFallbackPriceMap(symbols) {
 export async function fetchRealtimePrice(symbol) {
   const target = normalizeSymbol(symbol);
   let realtimeValue = null;
-  try {
-    const realtimeMap = await fetchMisRealtimePrices([target]);
-    realtimeValue = realtimeMap.get(target)?.price ?? null;
-  } catch (error) {
-    console.warn("MIS 即時報價取得失敗（單筆）", error);
+  if (ENABLE_MIS_REALTIME) {
+    try {
+      const realtimeMap = await fetchMisRealtimePrices([target]);
+      realtimeValue = realtimeMap.get(target)?.price ?? null;
+    } catch (error) {
+      console.warn("MIS 即時報價取得失敗（單筆）", error);
+    }
   }
   if (typeof realtimeValue === "number") {
     return realtimeValue;
@@ -136,11 +140,13 @@ export async function fetchRealtimePrice(symbol) {
 export async function fetchRealtimePrices(symbols) {
   const normalized = (symbols || []).map(normalizeSymbol);
   let realtimeMap = new Map();
-  try {
-    // 只查當前需要的股票，避免 URL 過長
-    realtimeMap = await fetchMisRealtimePrices(normalized);
-  } catch (error) {
-    console.warn("MIS 即時報價取得失敗（批次）", error);
+  if (ENABLE_MIS_REALTIME) {
+    try {
+      // 只查當前需要的股票，避免 URL 過長
+      realtimeMap = await fetchMisRealtimePrices(normalized);
+    } catch (error) {
+      console.warn("MIS 即時報價取得失敗（批次）", error);
+    }
   }
   const map = await getFallbackPriceMap(normalized);
   return normalized.map((symbol) => {

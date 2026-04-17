@@ -20,6 +20,101 @@ let loadToken = 0;
 let stockMaster = [];
 let masterLoadingPromise = null;
 
+function parseDateYmd(text) {
+  const [y, m, d] = String(text || "").split("/").map((x) => Number(x));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  const dt = new Date(y, m - 1, d);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function calcReferencePrice(basePrice, cashDividend, stockDividend, hasDividend, hasRights) {
+  const base = Number(basePrice);
+  if (!Number.isFinite(base)) return null;
+  const cash = Number.isFinite(Number(cashDividend)) ? Number(cashDividend) : 0;
+  const stock = Number.isFinite(Number(stockDividend)) ? Number(stockDividend) : 0;
+  const factor = 1 + stock / 10;
+
+  if (hasDividend && hasRights) {
+    if (!Number.isFinite(factor) || factor <= 0) return null;
+    return Number(((base - cash) / factor).toFixed(4));
+  }
+  if (hasDividend) {
+    return Number((base - cash).toFixed(4));
+  }
+  if (hasRights) {
+    if (!Number.isFinite(factor) || factor <= 0) return null;
+    return Number((base / factor).toFixed(4));
+  }
+  return null;
+}
+
+function calcSpreadRatio(currentPrice, referencePrice) {
+  const current = Number(currentPrice);
+  const reference = Number(referencePrice);
+  if (!Number.isFinite(current) || current <= 0) return null;
+  if (!Number.isFinite(reference)) return null;
+  return Number((((current - reference) / current) * 100).toFixed(4));
+}
+
+function applyCorporateReference(item) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eventDateText = item.nextDividendDate !== "還未公佈"
+    ? item.nextDividendDate
+    : item.nextRightsDate;
+  const eventDate = parseDateYmd(eventDateText);
+  const hasDividend = item.cashDividend != null;
+  const hasRights = item.stockDividend != null;
+  const isEventDay = eventDate ? today.getTime() === eventDate.getTime() : false;
+  const clearDate = eventDate ? new Date(eventDate) : null;
+  if (clearDate) {
+    clearDate.setDate(clearDate.getDate() + 1);
+  }
+  const shouldClear = clearDate && today >= clearDate;
+
+  // 除權息隔天起：首頁清空除權息資訊，參考價改用已固定值
+  if (shouldClear) {
+    const fixedReference = item.referencePrice ?? null;
+    return {
+      ...item,
+      nextDividendDate: "還未公佈",
+      cashDividend: null,
+      nextRightsDate: "還未公佈",
+      stockDividend: null,
+      referenceTitle: "除權息參考價",
+      referencePrice: fixedReference,
+      spreadRatio: calcSpreadRatio(item.currentPrice, fixedReference)
+    };
+  }
+
+  // 除權息當天：參考價固定使用前一交易日收盤計算後的值（由後端排程寫入）
+  if (isEventDay) {
+    const referenceTitle = (hasDividend && hasRights) ? "除權息參考價" : (hasRights ? "除權參考價" : "除息參考價");
+    const fixedReference = item.referencePrice ?? null;
+    return {
+      ...item,
+      referenceTitle,
+      referencePrice: fixedReference,
+      spreadRatio: calcSpreadRatio(item.currentPrice, fixedReference)
+    };
+  }
+
+  const dynamicRef = calcReferencePrice(
+    item.currentPrice,
+    item.cashDividend,
+    item.stockDividend,
+    hasDividend,
+    hasRights
+  );
+  const referenceTitle = (hasDividend && hasRights) ? "除權息參考價" : (hasRights ? "除權參考價" : "除息參考價");
+  return {
+    ...item,
+    referenceTitle,
+    referencePrice: dynamicRef ?? item.referencePrice ?? null,
+    spreadRatio: calcSpreadRatio(item.currentPrice, dynamicRef ?? item.referencePrice ?? null)
+  };
+}
+
 function buildStockByWatchlist(watchlist) {
   return watchlist.map((w) => createEmptyStock(w.symbol, w.name || w.symbol));
 }
@@ -36,6 +131,8 @@ function renderCards(items) {
     const cashText = item.cashDividend == null ? "還未公佈" : formatMoney(item.cashDividend);
     const rightsText = item.stockDividend == null ? "還未公佈" : `${item.stockDividend} 股`;
     const refText = item.referencePrice == null ? "等待數據中" : formatMoney(item.referencePrice);
+    const refTitle = item.referenceTitle || "除息參考價";
+    const showSignal = item.referencePrice != null;
     const priceSourceText = item.priceSource === "realtime"
       ? "即時"
       : item.priceSource === "prevClose"
@@ -54,8 +151,8 @@ function renderCards(items) {
           <div class="right-col">
             <p>除息日期: ${item.nextDividendDate} | 除息額: ${cashText}</p>
             <p>除權日期: ${item.nextRightsDate} | 股數: ${rightsText}</p>
-            <p>除息參考價: ${refText}</p>
-            <p><span class="badge ${signal.key}">${signal.icon} ${signal.text} | 價差 ${ratioText}</span></p>
+            <p>${refTitle}: ${refText}</p>
+            ${showSignal ? `<p><span class="badge ${signal.key}">${signal.icon} ${signal.text} | 價差 ${ratioText}</span></p>` : ""}
           </div>
         </a>
       </article>
@@ -87,33 +184,35 @@ async function enrichAnnualCorporateActions(items) {
           nextDividendDate: market.nextDividendDate ?? next.nextDividendDate,
           cashDividend: market.cashDividend ?? next.cashDividend,
           nextRightsDate: market.nextRightsDate ?? next.nextRightsDate,
-          stockDividend: market.stockDividend ?? next.stockDividend
+          stockDividend: market.stockDividend ?? next.stockDividend,
+          referencePrice: market.referencePrice ?? next.referencePrice
         };
       }
 
       if (!action) return next;
-      return {
+      return applyCorporateReference({
         ...next,
         // 若資料庫沒有值，再補當下 TWT48U
         nextDividendDate: next.nextDividendDate === "還未公佈" ? (action.nextDividendDate ?? next.nextDividendDate) : next.nextDividendDate,
         cashDividend: next.cashDividend == null ? action.cashDividend : next.cashDividend,
         nextRightsDate: next.nextRightsDate === "還未公佈" ? (action.nextRightsDate ?? next.nextRightsDate) : next.nextRightsDate,
         stockDividend: next.stockDividend == null ? action.stockDividend : next.stockDividend
-      };
+      });
     });
   } catch (error) {
     console.warn("載入年度除權息資料失敗，改用現有資料", error);
     return items.map((item) => {
       const market = marketMap.get(item.symbol);
       if (!market) return item;
-      return {
+      return applyCorporateReference({
         ...item,
         name: market.name || item.name,
         nextDividendDate: market.nextDividendDate ?? item.nextDividendDate,
         cashDividend: market.cashDividend ?? item.cashDividend,
         nextRightsDate: market.nextRightsDate ?? item.nextRightsDate,
-        stockDividend: market.stockDividend ?? item.stockDividend
-      };
+        stockDividend: market.stockDividend ?? item.stockDividend,
+        referencePrice: market.referencePrice ?? item.referencePrice
+      });
     });
   }
 }
@@ -221,7 +320,7 @@ async function refreshRealtimePrice() {
     if (!realtime || realtime.price == null) {
       return item;
     }
-    return { ...item, currentPrice: realtime.price, priceSource: realtime.source || "close" };
+    return applyCorporateReference({ ...item, currentPrice: realtime.price, priceSource: realtime.source || "close" });
   });
   // 搜尋框只用來「新增追蹤」，不拿來篩選追蹤清單內容
   renderCards(allStocks);

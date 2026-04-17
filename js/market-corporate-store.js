@@ -66,7 +66,10 @@ export async function loadMarketCorporateHistory(symbol) {
         date: x.date,
         type: x.type || x.typeRaw || "--",
         cashDividend: x.cashDividend ?? null,
-        stockDividend: x.stockDividend ?? null
+        stockDividend: x.stockDividend ?? null,
+        referencePrice: x.referencePrice ?? null,
+        referenceAnchorDate: x.referenceAnchorDate ?? null,
+        anchorClose: x.anchorClose ?? null
       }))
       .filter((x) => x.date)
       .sort((a, b) => (a.date < b.date ? 1 : -1));
