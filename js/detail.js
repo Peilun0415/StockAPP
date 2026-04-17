@@ -43,6 +43,14 @@ function rangeText(range) {
   return `近 ${range} 年`;
 }
 
+function calcSpreadRatio(currentPrice, referencePrice) {
+  const current = Number(currentPrice);
+  const reference = Number(referencePrice);
+  if (!Number.isFinite(current) || current <= 0) return null;
+  if (!Number.isFinite(reference)) return null;
+  return Number((((current - reference) / current) * 100).toFixed(4));
+}
+
 function renderSummary(item) {
   const signal = getSignalByRatio(item.spreadRatio);
   const ratioText = item.spreadRatio == null ? "待定" : `${item.spreadRatio}%`;
@@ -73,16 +81,24 @@ function renderHistory(item) {
   historyRoot.innerHTML = filtered.map((h) => {
     const cashText = h.cashDividend == null ? "還未公佈" : formatMoney(h.cashDividend);
     const stockText = h.stockDividend == null ? "還未公佈" : `${h.stockDividend} 股`;
+    const eventPriceText = h.anchorClose == null ? "等待數據中" : formatMoney(h.anchorClose);
+    const historySpreadRatio = calcSpreadRatio(h.anchorClose, h.referencePrice);
+    const ratioText = historySpreadRatio == null ? "待定" : `${historySpreadRatio}%`;
+    const signal = getSignalByRatio(historySpreadRatio);
+    const signalText = historySpreadRatio == null ? "⚪ 待定" : `${signal.icon} ${signal.text}`;
+    const tone = signal?.key || "white";
     const refLine = h.referencePrice == null
       ? "除權息參考價: 尚未固定（排程同步後顯示）"
       : `除權息參考價: ${formatMoney(h.referencePrice)}（基準日 ${h.referenceAnchorDate || "--"} 收盤）`;
     return `
-      <article class="history-card white">
-        <span class="timeline-dot white"></span>
+      <article class="history-card ${tone}">
+        <span class="timeline-dot ${tone}"></span>
         <p><strong>${h.date} 除權息完畢</strong></p>
-        <p>類型: ${h.type || "--"}</p>
         <p>現金股利: ${cashText} | 股票股利: ${stockText}</p>
+        <p>當時價格: ${eventPriceText}</p>
         <p>${refLine}</p>
+        <p>價差比: ${ratioText}</p>
+        <p><span class="badge ${signal.key}">${signalText}</span></p>
       </article>
     `;
   }).join("");
