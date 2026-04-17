@@ -2,6 +2,31 @@ import { firebaseConfig } from "./firebase-config.js";
 
 let authInstance = null;
 let authMod = null;
+let redirectResultHandled = false;
+
+function canUseSessionStorage() {
+  try {
+    const key = "__stockapp_auth_test__";
+    window.sessionStorage.setItem(key, "1");
+    window.sessionStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isIosBrowser() {
+  const ua = navigator.userAgent || "";
+  return /iP(ad|hone|od)/i.test(ua);
+}
+
+function shouldFallbackToRedirect(error) {
+  const code = error?.code || "";
+  return code === "auth/popup-blocked"
+    || code === "auth/popup-closed-by-user"
+    || code === "auth/cancelled-popup-request"
+    || code === "auth/operation-not-supported-in-this-environment";
+}
 
 async function ensureAuth() {
   if (!firebaseConfig) {
@@ -34,8 +59,20 @@ export async function signInWithGoogle() {
     throw new Error("Firebase Auth 未設定完成或初始化失敗");
   }
   const provider = new authMod.GoogleAuthProvider();
-  // 會用彈出視窗完成登入；GitHub Pages/某些瀏覽器可能會擋彈出視窗
-  return authMod.signInWithPopup(auth, provider);
+  // iOS / 行動瀏覽器優先嘗試 popup，失敗再改 redirect。
+  try {
+    return await authMod.signInWithPopup(auth, provider);
+  } catch (error) {
+    if (!shouldFallbackToRedirect(error)) {
+      throw error;
+    }
+    // redirect 流程仰賴 sessionStorage，若不可用會出現 missing initial state。
+    if (!canUseSessionStorage()) {
+      throw new Error("目前瀏覽器限制了登入所需的儲存空間，請改用 Safari 開啟或關閉無痕模式後再試。");
+    }
+    await authMod.signInWithRedirect(auth, provider);
+    return null;
+  }
 }
 
 export async function signOutGoogle() {
@@ -96,6 +133,20 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
     // 仍讓外層可繼續跑（用 localStorage）
     onUserChanged?.(null);
     return null;
+  }
+
+  if (!redirectResultHandled) {
+    redirectResultHandled = true;
+    try {
+      await authMod.getRedirectResult(auth);
+    } catch (error) {
+      // iOS 某些環境會缺失 initial state，忽略這筆結果讓使用者可重新登入。
+      if (error?.code !== "auth/missing-initial-state") {
+        console.warn("讀取 redirect 登入結果失敗", error);
+      } else if (isIosBrowser()) {
+        console.warn("iOS 瀏覽器缺少 redirect initial state，請重新嘗試登入");
+      }
+    }
   }
 
   let first = true;
