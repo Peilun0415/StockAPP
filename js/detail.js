@@ -59,8 +59,21 @@ function calcSpreadRatio(currentPrice, referencePrice) {
   const current = Number(currentPrice);
   const reference = Number(referencePrice);
   if (!Number.isFinite(current) || current <= 0) return null;
-  if (!Number.isFinite(reference)) return null;
+  if (!Number.isFinite(reference) || reference <= 0) return null;
   return Number((((current - reference) / current) * 100).toFixed(4));
+}
+
+function hasUpcomingEvent(item) {
+  return item.nextDividendDate !== "還未公佈" || item.nextRightsDate !== "還未公佈";
+}
+
+function isFutureDateYmd(text) {
+  if (!text || text === "還未公佈") return false;
+  const dt = parseDateYmd(text);
+  if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dt.getTime() > today.getTime();
 }
 
 function normalizeDateInputToYmd(value) {
@@ -89,6 +102,15 @@ function calcReferencePrice(basePrice, cashDividend, stockDividend, typeLabel) {
     return Number((base / factor).toFixed(4));
   }
   return null;
+}
+
+function getTypeByDividend(cashDividend, stockDividend) {
+  const hasCash = cashDividend != null;
+  const hasStock = stockDividend != null;
+  if (hasCash && hasStock) return "權息";
+  if (hasStock) return "權";
+  if (hasCash) return "息";
+  return "--";
 }
 
 function upsertHistoryEvent(event) {
@@ -242,11 +264,6 @@ function bindManualEventForm() {
 }
 
 function renderSummary(item) {
-  const signal = getSignalByRatio(item.spreadRatio);
-  const ratioText = item.spreadRatio == null ? "待定" : `${item.spreadRatio}%`;
-  const refText = item.referencePrice == null ? "等待數據中" : formatMoney(item.referencePrice);
-  const signalText = item.spreadRatio == null ? "⚪ 待定" : `${signal.icon} ${signal.text}`;
-
   topSymbol.textContent = item.symbol;
   topName.textContent = item.name;
 
@@ -256,7 +273,7 @@ function renderSummary(item) {
 }
 
 function renderHistory(item) {
-  const filtered = getFilteredHistory(item.history, activeRange);
+  const filtered = getFilteredHistory(item.history || [], activeRange);
   historyTitle.textContent = `歷年除權息紀錄（${rangeText(activeRange)}）`;
 
   if (!filtered.length) {
@@ -265,26 +282,33 @@ function renderHistory(item) {
   }
 
   historyRoot.innerHTML = filtered.map((h) => {
+    const isFutureEvent = isFutureDateYmd(h.date);
     const cashText = h.cashDividend == null ? "還未公佈" : formatMoney(h.cashDividend);
     const stockText = h.stockDividend == null ? "還未公佈" : `${h.stockDividend} 股`;
-    const eventPriceText = h.anchorClose == null ? "等待數據中" : formatMoney(h.anchorClose);
-    const historySpreadRatio = calcSpreadRatio(h.anchorClose, h.referencePrice);
-    const ratioText = historySpreadRatio == null ? "待定" : `${historySpreadRatio}%`;
-    const signal = getSignalByRatio(historySpreadRatio);
-    const signalText = historySpreadRatio == null ? "⚪ 待定" : `${signal.icon} ${signal.text}`;
-    const tone = signal?.key || "white";
-    const refLine = h.referencePrice == null
+    const eventPriceText = isFutureEvent
+      ? formatMoney(item.currentPrice)
+      : (h.anchorClose == null ? "等待數據中" : formatMoney(h.anchorClose));
+    const typeLabel = getTypeByDividend(h.cashDividend, h.stockDividend);
+    const dynamicRef = calcReferencePrice(item.currentPrice, h.cashDividend, h.stockDividend, typeLabel);
+    const effectiveReference = isFutureEvent ? (h.referencePrice ?? dynamicRef) : h.referencePrice;
+    const spreadRatio = calcSpreadRatio(item.currentPrice, effectiveReference);
+    const ratioText = spreadRatio == null ? "待定" : `${spreadRatio}%`;
+    const signal = getSignalByRatio(spreadRatio);
+    const tone = spreadRatio == null ? "white" : signal.key;
+    const refLine = effectiveReference == null
       ? "除權息參考價: 等待數據中"
-      : `除權息參考價: ${formatMoney(h.referencePrice)}`;
+      : `除權息參考價: ${formatMoney(effectiveReference)}`;
+    const signalLine = effectiveReference == null
+      ? "<p>價差比: 待定</p>"
+      : `<p>價差比: ${ratioText} <span class="badge ${signal.key}">${signal.icon} ${signal.text}</span></p>`;
     return `
       <article class="history-card ${tone}">
         <span class="timeline-dot ${tone}"></span>
         <p><strong>${h.date}</strong></p>
         <p>現金股利: ${cashText} | 股票股利: ${stockText}</p>
-        <p>當時價格: ${eventPriceText}</p>
+        <p>${isFutureEvent ? "目前價格" : "當時價格"}: ${eventPriceText}</p>
         <p>${refLine}</p>
-        <p>價差比: ${ratioText}</p>
-        <p><span class="badge ${signal.key}">${signalText}</span></p>
+        ${signalLine}
       </article>
     `;
   }).join("");

@@ -84,8 +84,8 @@ function calcSpreadRatio(currentPrice, referencePrice) {
 function applyPreviousEventInfo(item) {
   const prev = item.previousEvent;
   if (!prev) return { ...item, previousSpreadRatio: null };
-  // 上一期價差比應以該期事件資料計算，不應混用目前即時價。
-  const eventSpreadRatio = calcSpreadRatio(prev.anchorClose, prev.referencePrice);
+  // 價差比統一以目前股價作為當前股價。
+  const eventSpreadRatio = calcSpreadRatio(item.currentPrice, prev.referencePrice);
   return {
     ...item,
     previousSpreadRatio: eventSpreadRatio
@@ -170,8 +170,14 @@ function renderCards(items) {
     const refTitle = item.referenceTitle || "除息參考價";
     const hasEventDate = item.nextDividendDate !== "還未公佈" || item.nextRightsDate !== "還未公佈";
     const upcomingEventLabel = getUpcomingEventLabel(item.nextDividendDate, item.nextRightsDate);
-    const showSignal = item.referencePrice != null;
+    // 僅在「本期除權息事件仍存在」且有參考價時顯示目前燈號；
+    // 若已清空為下一期待公告，避免沿用舊參考價造成誤導。
+    const showSignal = hasEventDate && item.referencePrice != null;
     const previousRatioText = item.previousSpreadRatio == null ? "待定" : `${item.previousSpreadRatio}%`;
+    const previousSignal = getSignalByRatio(item.previousSpreadRatio);
+    const previousSignalText = item.previousSpreadRatio == null
+      ? "⚪ 待定"
+      : `${previousSignal.icon} ${previousSignal.text}`;
     const previousRefText = item.previousEvent?.referencePrice == null ? "等待數據中" : formatMoney(item.previousEvent.referencePrice);
     const previousDateText = item.previousEvent?.date || "--";
     const showPreviousEventBox = Boolean(item.previousEvent?.date || item.previousEvent?.referencePrice != null);
@@ -220,7 +226,7 @@ function renderCards(items) {
               <div class="previous-event-box">
                 <p class="previous-event-title">上一期除權息（${previousDateText}）</p>
                 <p>參考價: ${previousRefText}</p>
-                <p>價差比: ${previousRatioText}</p>
+                <p>價差比: ${previousRatioText} <span class="badge ${previousSignal.key}">${previousSignalText}</span></p>
               </div>
             ` : ""}
           </div>
