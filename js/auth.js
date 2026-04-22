@@ -111,7 +111,20 @@ export async function waitForAuthUser() {
 
 function setBtnState(btn, { text, disabled }) {
   if (!btn) return;
-  if (text != null) btn.textContent = text;
+  if (text != null) {
+    const label = btn.querySelector?.(".auth-btn-label");
+    if (label) {
+      label.textContent = text;
+    } else {
+      btn.textContent = text;
+    }
+    const gIcon = btn.querySelector?.(".google-g");
+    if (gIcon) {
+      // 僅列表／明細頁頂欄：已登入（顯示「登出」）不顯示 Google 圖；登入頁 login-google-btn 維持原樣
+      const isListOrDetailTopBar = btn.classList?.contains("login-btn");
+      gIcon.hidden = Boolean(isListOrDetailTopBar && text === "登出");
+    }
+  }
   btn.disabled = Boolean(disabled);
 }
 
@@ -170,7 +183,7 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
       if (user) {
         setBtnState(authBtn, { text: "登出", disabled: false });
       } else {
-        setBtnState(authBtn, { text: "登入 Google", disabled: false });
+        setBtnState(authBtn, { text: "Google 登入", disabled: false });
       }
       onUserChanged?.(user || null);
     });

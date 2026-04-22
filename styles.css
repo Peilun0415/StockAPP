@@ -186,13 +186,31 @@ body {
 }
 
 .login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--stroke);
   background: #fff;
   color: #111318;
   border-radius: 12px;
-  padding: 0 14px;
+  padding: 0 12px 0 10px;
   font-size: 14px;
   height: 40px;
+}
+
+.login-btn .google-g {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-radius: 0;
+}
+
+.login-btn .google-g[hidden] {
+  display: none;
 }
 
 .login-btn:disabled {
