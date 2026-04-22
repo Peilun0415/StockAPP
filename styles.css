@@ -598,6 +598,12 @@ h2 {
   margin: 2px 0;
 }
 
+.history-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px !important;
+}
+
 .empty {
   text-align: center;
   color: var(--muted);

@@ -154,3 +154,25 @@ export async function saveManualCorporateEvent(symbol, eventPayload) {
   }, { merge: true });
   return eventId;
 }
+
+/**
+ * 刪除手動維護的除權息事件（marketCorporateActions/{symbol}/events/{eventId}）
+ */
+export async function deleteManualCorporateEvent(symbol, dateText, typeText) {
+  const s = String(symbol || "").toUpperCase();
+  if (!s) {
+    throw new Error("缺少股票代號");
+  }
+  if (!dateText || !typeText) {
+    throw new Error("缺少必要欄位 date/type");
+  }
+  const fb = await ensureFirestore();
+  if (!fb) {
+    throw new Error("Firebase 尚未設定，無法刪除");
+  }
+  const { db, api } = fb;
+  const eventId = eventDocId(s, dateText, typeText);
+  const ref = api.doc(db, "marketCorporateActions", s, "events", eventId);
+  await api.deleteDoc(ref);
+  return eventId;
+}

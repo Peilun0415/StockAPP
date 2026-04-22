@@ -1,6 +1,11 @@
 import { fetchRealtimePrice } from "./market-api.js";
 import { fetchCorporateActionHistory, fetchDividendAnnouncementHistory } from "./corporate-actions-api.js";
-import { loadMarketCorporateHistory, loadMarketCorporateSummaries, saveManualCorporateEvent } from "./market-corporate-store.js";
+import {
+  loadMarketCorporateHistory,
+  loadMarketCorporateSummaries,
+  saveManualCorporateEvent,
+  deleteManualCorporateEvent
+} from "./market-corporate-store.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
@@ -22,11 +27,17 @@ const manualEventForm = document.querySelector("#manualEventForm");
 const manualEventSymbol = document.querySelector("#manualEventSymbol");
 const cancelManualEventBtn = document.querySelector("#cancelManualEventBtn");
 const submitManualEventBtn = document.querySelector("#submitManualEventBtn");
+const editHistoryDialog = document.querySelector("#editHistoryDialog");
+const editHistoryForm = document.querySelector("#editHistoryForm");
+const editHistorySymbol = document.querySelector("#editHistorySymbol");
+const cancelEditHistoryBtn = document.querySelector("#cancelEditHistoryBtn");
+const submitEditHistoryBtn = document.querySelector("#submitEditHistoryBtn");
 
 const params = new URLSearchParams(window.location.search);
 const symbol = (params.get("symbol") || "").toUpperCase();
 const stock = createEmptyStock(symbol || "N/A", symbol || "N/A");
 let activeRange = 1;
+let canManageHistory = false;
 
 function setPageLoading(show) {
   if (!pageLoadingEl) return;
@@ -84,6 +95,13 @@ function normalizeDateInputToYmd(value) {
   return `${m[1]}/${m[2]}/${m[3]}`;
 }
 
+function normalizeYmdToDateInput(value) {
+  const t = String(value || "").trim();
+  const m = t.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!m) return "";
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
 function calcReferencePrice(basePrice, cashDividend, stockDividend, typeLabel) {
   const base = Number(basePrice);
   if (!Number.isFinite(base)) return null;
@@ -111,6 +129,14 @@ function getTypeByDividend(cashDividend, stockDividend) {
   if (hasStock) return "權";
   if (hasCash) return "息";
   return "--";
+}
+
+function findHistoryEvent(date, type) {
+  return (stock.history || []).find((x) => x.date === date && (x.type || "--") === (type || "--")) || null;
+}
+
+function removeHistoryEvent(date, type) {
+  stock.history = (stock.history || []).filter((x) => !(x.date === date && (x.type || "--") === (type || "--")));
 }
 
 function upsertHistoryEvent(event) {
@@ -248,6 +274,7 @@ function bindManualEventForm() {
           anchorClose: payload.anchorClose
         });
       });
+      canManageHistory = true;
       renderHistory(stock);
       manualEventDialog.close();
       resetManualForm();
@@ -259,6 +286,124 @@ function bindManualEventForm() {
       if (submitManualEventBtn) {
         submitManualEventBtn.disabled = false;
       }
+    }
+  });
+}
+
+function bindHistoryActions() {
+  if (!historyRoot) return;
+  historyRoot.addEventListener("click", async (event) => {
+    const editBtn = event.target.closest("[data-edit-history]");
+    if (editBtn) {
+      const date = editBtn.getAttribute("data-date");
+      const type = editBtn.getAttribute("data-type");
+      const target = findHistoryEvent(date, type);
+      if (!target || !editHistoryDialog || !editHistoryForm) return;
+      if (editHistorySymbol) {
+        editHistorySymbol.textContent = `${stock.symbol} ${stock.name || ""}`.trim();
+      }
+      editHistoryForm.elements.originalDate.value = date || "";
+      editHistoryForm.elements.originalType.value = type || "";
+      editHistoryForm.elements.eventDate.value = normalizeYmdToDateInput(target.date);
+      editHistoryForm.elements.anchorClose.value = target.anchorClose ?? "";
+      editHistoryForm.elements.cashDividend.value = target.cashDividend ?? "";
+      editHistoryForm.elements.stockDividend.value = target.stockDividend ?? "";
+      editHistoryDialog.showModal();
+      return;
+    }
+
+    const deleteBtn = event.target.closest("[data-delete-history]");
+    if (!deleteBtn) return;
+    const date = deleteBtn.getAttribute("data-date");
+    const type = deleteBtn.getAttribute("data-type");
+    if (!date || !type) return;
+    if (!window.confirm(`確定刪除 ${date} 的除權息紀錄嗎？`)) return;
+    try {
+      await deleteManualCorporateEvent(stock.symbol, date, type);
+      removeHistoryEvent(date, type);
+      renderHistory(stock);
+    } catch (error) {
+      console.error(error);
+      alert("刪除失敗，請確認你有 Firestore 寫入權限。");
+    }
+  });
+}
+
+function bindEditHistoryForm() {
+  if (!editHistoryDialog || !editHistoryForm) return;
+  cancelEditHistoryBtn?.addEventListener("click", () => {
+    editHistoryDialog.close();
+  });
+  editHistoryDialog.addEventListener("click", (event) => {
+    if (event.target === editHistoryDialog) {
+      editHistoryDialog.close();
+    }
+  });
+  editHistoryForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fd = new FormData(editHistoryForm);
+    const originalDate = String(fd.get("originalDate") || "").trim();
+    const originalType = String(fd.get("originalType") || "").trim();
+    const eventDate = normalizeDateInputToYmd(fd.get("eventDate"));
+    const anchorClose = Number(fd.get("anchorClose"));
+    const cashRaw = String(fd.get("cashDividend") || "").trim();
+    const stockRaw = String(fd.get("stockDividend") || "").trim();
+    const cashDividend = cashRaw === "" ? null : Number(cashRaw);
+    const stockDividend = stockRaw === "" ? null : Number(stockRaw);
+    if (!eventDate) {
+      alert("請填入有效日期。");
+      return;
+    }
+    if (!Number.isFinite(anchorClose) || anchorClose <= 0) {
+      alert("請填入有效的除息前股價。");
+      return;
+    }
+    if (cashDividend == null && stockDividend == null) {
+      alert("現金股利與股票股利至少要填一項。");
+      return;
+    }
+    if ((cashDividend != null && !Number.isFinite(cashDividend)) || (stockDividend != null && !Number.isFinite(stockDividend))) {
+      alert("請確認股利欄位是有效數字。");
+      return;
+    }
+    const nextType = getTypeByDividend(cashDividend, stockDividend);
+    const payload = {
+      name: stock.name || stock.symbol,
+      date: eventDate,
+      type: nextType,
+      typeRaw: "manual_form",
+      cashDividend,
+      stockDividend,
+      anchorClose,
+      referenceAnchorDate: null,
+      referencePrice: calcReferencePrice(anchorClose, cashDividend, stockDividend, nextType),
+      referencePriceMode: "manual_anchor_input",
+      source: "manual_user_input"
+    };
+    try {
+      if (submitEditHistoryBtn) submitEditHistoryBtn.disabled = true;
+      if (originalDate && originalType && (originalDate !== payload.date || originalType !== payload.type)) {
+        await deleteManualCorporateEvent(stock.symbol, originalDate, originalType);
+        removeHistoryEvent(originalDate, originalType);
+      }
+      await saveManualCorporateEvent(stock.symbol, payload);
+      upsertHistoryEvent({
+        date: payload.date,
+        type: payload.type,
+        cashDividend: payload.cashDividend,
+        stockDividend: payload.stockDividend,
+        referencePrice: payload.referencePrice,
+        referenceAnchorDate: payload.referenceAnchorDate,
+        anchorClose: payload.anchorClose
+      });
+      canManageHistory = true;
+      renderHistory(stock);
+      editHistoryDialog.close();
+    } catch (error) {
+      console.error(error);
+      alert("儲存失敗，請確認你有 Firestore 寫入權限。");
+    } finally {
+      if (submitEditHistoryBtn) submitEditHistoryBtn.disabled = false;
     }
   });
 }
@@ -301,6 +446,14 @@ function renderHistory(item) {
     const signalLine = effectiveReference == null
       ? "<p>價差比: 待定</p>"
       : `<p>價差比: ${ratioText} <span class="badge ${signal.key}">${signal.icon} ${signal.text}</span></p>`;
+    const actionLine = canManageHistory
+      ? `
+        <p class="history-actions">
+          <button type="button" class="manual-cancel-btn" data-edit-history="1" data-date="${h.date}" data-type="${h.type || "--"}">編輯</button>
+          <button type="button" class="manual-submit-btn" data-delete-history="1" data-date="${h.date}" data-type="${h.type || "--"}">刪除</button>
+        </p>
+      `
+      : "";
     return `
       <article class="history-card ${tone}">
         <span class="timeline-dot ${tone}"></span>
@@ -309,6 +462,7 @@ function renderHistory(item) {
         <p>${isFutureEvent ? "目前價格" : "當時價格"}: ${eventPriceText}</p>
         <p>${refLine}</p>
         ${signalLine}
+        ${actionLine}
       </article>
     `;
   }).join("");
@@ -362,11 +516,14 @@ async function initialize() {
   }
   try {
     stock.history = await loadMarketCorporateHistory(stock.symbol);
+    canManageHistory = stock.history.length > 0;
     if (!stock.history.length) {
       stock.history = await fetchCorporateActionHistory(stock.symbol, 10);
+      canManageHistory = false;
     }
     if (!stock.history.length) {
       stock.history = await fetchDividendAnnouncementHistory(stock.symbol);
+      canManageHistory = false;
     }
   } catch (error) {
     console.warn("載入歷史除權息資料失敗，改用預設資料", error);
@@ -391,6 +548,8 @@ async function boot() {
       }
     });
     bindManualEventForm();
+    bindEditHistoryForm();
+    bindHistoryActions();
     await initialize();
   } finally {
     setPageLoading(false);

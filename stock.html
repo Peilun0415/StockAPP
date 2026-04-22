@@ -70,6 +70,31 @@
     </form>
   </dialog>
 
+  <dialog id="editHistoryDialog" class="manual-event-dialog">
+    <form id="editHistoryForm" method="dialog" class="manual-event-form">
+      <h3>編輯歷史除權息資料</h3>
+      <p class="manual-hint">股票：<span id="editHistorySymbol">--</span></p>
+      <input type="hidden" name="originalDate" />
+      <input type="hidden" name="originalType" />
+      <label>除權息日期
+        <input name="eventDate" type="date" required />
+      </label>
+      <label>除息前股價
+        <input name="anchorClose" type="number" step="0.0001" min="0" required />
+      </label>
+      <label>現金股利（元）
+        <input name="cashDividend" type="number" step="0.0001" min="0" />
+      </label>
+      <label>股票股利（股）
+        <input name="stockDividend" type="number" step="0.0001" min="0" />
+      </label>
+      <div class="manual-actions">
+        <button type="button" id="cancelEditHistoryBtn" class="manual-cancel-btn">取消</button>
+        <button type="submit" id="submitEditHistoryBtn" class="manual-submit-btn">儲存變更</button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
     window.__MIS_PROXY_ENDPOINT__ = "https://twse-mis-proxy.halloween1456.workers.dev/";
   </script>
