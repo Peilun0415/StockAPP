@@ -1,0 +1,16 @@
+{
+  "name": "狗狗財經 - 股利追蹤",
+  "short_name": "狗狗財經",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f8ff",
+  "theme_color": "#4b8dff",
+  "icons": [
+    {
+      "src": "./icons/app-icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
