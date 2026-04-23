@@ -134,10 +134,14 @@ function renderAuthUserText(user) {
   return `已登入：${email}`;
 }
 
-export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserChanged }) {
+export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserChanged, appBarOnlyLogout = false }) {
   const auth = await ensureAuth();
   if (!auth || !authMod) {
-    setBtnState(authBtn, { text: "登入 Google（未設定）", disabled: true });
+    if (appBarOnlyLogout) {
+      setBtnState(authBtn, { text: "登出（未設定）", disabled: true });
+    } else {
+      setBtnState(authBtn, { text: "登入 Google（未設定）", disabled: true });
+    }
     if (authUserEl) authUserEl.textContent = "未設定 Firebase Auth";
     if (avatarEl) {
       avatarEl.style.display = "none";
@@ -180,7 +184,10 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
           avatarEl.src = "";
         }
       }
-      if (user) {
+      if (appBarOnlyLogout) {
+        // 列表／明細頁：有 requireAuth 擋未登入，按鈕在 HTML 固定寫「登出」，不切換成登入文案
+        setBtnState(authBtn, { disabled: false });
+      } else if (user) {
         setBtnState(authBtn, { text: "登出", disabled: false });
       } else {
         setBtnState(authBtn, { text: "Google 登入", disabled: false });
@@ -196,7 +203,7 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
         const user = auth.currentUser;
         if (user) {
           await signOutGoogle();
-        } else {
+        } else if (!appBarOnlyLogout) {
           await signInWithGoogle();
         }
       } catch (error) {

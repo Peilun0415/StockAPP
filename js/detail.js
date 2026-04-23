@@ -539,6 +539,7 @@ async function boot() {
       authBtn,
       authUserEl,
       avatarEl: authAvatarEl,
+      appBarOnlyLogout: true,
       onUserChanged: (u) => {
         // 登出後直接回到登入頁，避免在未登入狀態停留
         if (!u && isAuthAvailable()) {

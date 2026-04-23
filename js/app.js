@@ -533,6 +533,7 @@ async function boot() {
       authBtn,
       authUserEl,
       avatarEl: authAvatarEl,
+      appBarOnlyLogout: true,
       onUserChanged: async (u) => {
         const nextUid = u?.uid ?? null;
         if (nextUid && skipFirstAuthReloadForUid && nextUid === skipFirstAuthReloadForUid) {
