@@ -73,6 +73,32 @@ function calcReferencePrice(basePrice, cashDividend, stockDividend, hasDividend,
   return null;
 }
 
+/** 同時除息＋除權：以同一基準價拆成「除息參考價」「除權參考價」 */
+function dualSplitFromBase(basePrice, cashDividend, stockDividend) {
+  return {
+    splitExDividendReference: calcReferencePrice(basePrice, cashDividend, null, true, false),
+    splitExRightsReference: calcReferencePrice(basePrice, null, stockDividend, false, true)
+  };
+}
+
+/** 已知除權息合併參考價時，反推除息／除權參考價（供除權息日固定價顯示） */
+function dualSplitFromCombined(combinedRef, cashDividend, stockDividend) {
+  const c = Number(combinedRef);
+  const cash = Number(cashDividend);
+  const stock = Number(stockDividend);
+  if (!Number.isFinite(c) || !Number.isFinite(cash) || !Number.isFinite(stock)) {
+    return { splitExDividendReference: null, splitExRightsReference: null };
+  }
+  const factor = 1 + stock / 10;
+  if (!Number.isFinite(factor) || factor <= 0) {
+    return { splitExDividendReference: null, splitExRightsReference: null };
+  }
+  return {
+    splitExDividendReference: Number((c * factor).toFixed(4)),
+    splitExRightsReference: Number((c + cash / factor).toFixed(4))
+  };
+}
+
 function calcSpreadRatio(currentPrice, referencePrice) {
   const current = Number(currentPrice);
   const reference = Number(referencePrice);
@@ -119,7 +145,9 @@ function applyCorporateReference(item) {
       stockDividend: null,
       referenceTitle: "除權息參考價",
       referencePrice: fixedReference,
-      spreadRatio: calcSpreadRatio(item.currentPrice, fixedReference)
+      spreadRatio: calcSpreadRatio(item.currentPrice, fixedReference),
+      splitExDividendReference: null,
+      splitExRightsReference: null
     };
   }
 
@@ -127,11 +155,17 @@ function applyCorporateReference(item) {
   if (isEventDay) {
     const referenceTitle = (hasDividend && hasRights) ? "除權息參考價" : (hasRights ? "除權參考價" : "除息參考價");
     const fixedReference = item.referencePrice ?? null;
+    const dualSplit = (hasDividend && hasRights)
+      ? (fixedReference != null
+        ? dualSplitFromCombined(fixedReference, item.cashDividend, item.stockDividend)
+        : dualSplitFromBase(item.currentPrice, item.cashDividend, item.stockDividend))
+      : { splitExDividendReference: null, splitExRightsReference: null };
     return {
       ...item,
       referenceTitle,
       referencePrice: fixedReference,
-      spreadRatio: calcSpreadRatio(item.currentPrice, fixedReference)
+      spreadRatio: calcSpreadRatio(item.currentPrice, fixedReference),
+      ...dualSplit
     };
   }
 
@@ -143,11 +177,15 @@ function applyCorporateReference(item) {
     hasRights
   );
   const referenceTitle = (hasDividend && hasRights) ? "除權息參考價" : (hasRights ? "除權參考價" : "除息參考價");
+  const dualSplit = (hasDividend && hasRights)
+    ? dualSplitFromBase(item.currentPrice, item.cashDividend, item.stockDividend)
+    : { splitExDividendReference: null, splitExRightsReference: null };
   return {
     ...item,
     referenceTitle,
     referencePrice: dynamicRef ?? item.referencePrice ?? null,
-    spreadRatio: calcSpreadRatio(item.currentPrice, dynamicRef ?? item.referencePrice ?? null)
+    spreadRatio: calcSpreadRatio(item.currentPrice, dynamicRef ?? item.referencePrice ?? null),
+    ...dualSplit
   };
 }
 
@@ -168,6 +206,9 @@ function renderCards(items) {
     const rightsText = item.stockDividend == null ? "還未公佈" : `${item.stockDividend} 股`;
     const refText = item.referencePrice == null ? "等待數據中" : formatMoney(item.referencePrice);
     const refTitle = item.referenceTitle || "除息參考價";
+    const showDualRefMobile = refTitle === "除權息參考價"
+      && item.splitExDividendReference != null
+      && item.splitExRightsReference != null;
     const hasEventDate = item.nextDividendDate !== "還未公佈" || item.nextRightsDate !== "還未公佈";
     const upcomingEventLabel = getUpcomingEventLabel(item.nextDividendDate, item.nextRightsDate);
     // 僅在「本期除權息事件仍存在」且有參考價時顯示目前燈號；
@@ -192,10 +233,14 @@ function renderCards(items) {
         <button class="delete-btn" type="button" data-delete="${item.symbol}" aria-label="刪除追蹤股">✕</button>
         <a class="card-link" href="./stock.html?symbol=${encodeURIComponent(item.symbol)}">
           <div class="left-col">
-            ${upcomingEventLabel ? `<p><span class="event-soon-tag">${upcomingEventLabel}</span></p>` : ""}
-            <p class="title">${item.symbol}</p>
-            <p>${item.name}</p>
-            <p class="price">${formatMoney(item.currentPrice)} <small>(${priceSourceText})</small></p>
+            ${upcomingEventLabel ? `<p class="event-wrap"><span class="event-soon-tag">${upcomingEventLabel}</span></p>` : ""}
+            <div class="left-head-row">
+              <div class="title-block">
+                <p class="title">${item.name}</p>
+                <p class="stock-card-name">${item.symbol}</p>
+              </div>
+              <p class="price">${formatMoney(item.currentPrice)}</p>
+            </div>
           </div>
           <div class="right-col">
             <div class="event-grid">
@@ -220,7 +265,23 @@ function renderCards(items) {
                 </p>
               </div>
             </div>
-            ${hasEventDate ? `<p class="current-ref-line">${refTitle}: ${refText}</p>` : ""}
+            ${hasEventDate ? (
+              showDualRefMobile
+                ? `
+              <p class="current-ref-line current-ref-line--combined-wide">${refTitle}: ${refText}</p>
+              <div class="current-ref-split" role="group" aria-label="除息與除權參考價">
+                <p class="current-ref-line current-ref-line--split-cell">
+                  <span class="current-ref-split-label">除息參考價</span>
+                  <span class="current-ref-split-value">${formatMoney(item.splitExDividendReference)}</span>
+                </p>
+                <p class="current-ref-line current-ref-line--split-cell">
+                  <span class="current-ref-split-label">除權參考價</span>
+                  <span class="current-ref-split-value">${formatMoney(item.splitExRightsReference)}</span>
+                </p>
+              </div>
+            `
+                : `<p class="current-ref-line">${refTitle}: ${refText}</p>`
+            ) : ""}
             ${showSignal ? `<p class="current-signal-line"><span class="badge ${signal.key}">${signal.icon} ${signal.text} 價差 ${ratioText}</span></p>` : ""}
             ${showPreviousEventBox ? `
               <div class="previous-event-box">
