@@ -56,6 +56,10 @@
     <form id="manualEventForm" method="dialog" class="manual-event-form">
       <h3>新增歷史除權息資料</h3>
       <p class="manual-hint">股票：<span id="manualEventSymbol">--</span></p>
+      <label class="manual-checkbox-row" style="display: flex;">
+        <input type="checkbox" id="syncRightsWithDividendDate" />
+        除權日、除權前股價與除息日／除息前股價同步
+      </label>
       <label>除息前股價
         <input name="anchorClose" type="number" inputmode="decimal" step="0.0001" min="0" required />
       </label>
@@ -64,6 +68,9 @@
       </label>
       <label>除息日
         <input name="dividendDate" type="date" />
+      </label>
+      <label>除權前股價
+        <input name="rightsAnchorClose" type="number" inputmode="decimal" step="0.0001" min="0" />
       </label>
       <label>股票股利（股）
         <input name="stockDividend" type="number" inputmode="decimal" step="0.0001" min="0" />

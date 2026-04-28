@@ -154,10 +154,47 @@ function upsertHistoryEvent(event) {
 function resetManualForm() {
   if (!manualEventForm) return;
   manualEventForm.reset();
+  const rights = manualEventForm.elements.rightsDate;
+  if (rights) rights.readOnly = false;
+  const rightsAnchor = manualEventForm.elements.rightsAnchorClose;
+  if (rightsAnchor) rightsAnchor.readOnly = false;
 }
 
 function bindManualEventForm() {
   if (!openManualEventBtn || !manualEventDialog || !manualEventForm) return;
+  const syncRightsWithDividendCb = manualEventForm.querySelector("#syncRightsWithDividendDate");
+  const dividendDateInput = manualEventForm.elements.dividendDate;
+  const rightsDateInput = manualEventForm.elements.rightsDate;
+  const dividendAnchorInput = manualEventForm.elements.anchorClose;
+  const rightsAnchorInput = manualEventForm.elements.rightsAnchorClose;
+
+  function applyRightsDateFromDividend() {
+    if (!syncRightsWithDividendCb?.checked || !dividendDateInput || !rightsDateInput) return;
+    rightsDateInput.value = dividendDateInput.value;
+  }
+
+  function applyRightsAnchorFromDividend() {
+    if (!syncRightsWithDividendCb?.checked || !dividendAnchorInput || !rightsAnchorInput) return;
+    rightsAnchorInput.value = dividendAnchorInput.value;
+  }
+
+  function setRightsSyncedUi(checked) {
+    if (rightsDateInput) rightsDateInput.readOnly = Boolean(checked);
+    if (rightsAnchorInput) rightsAnchorInput.readOnly = Boolean(checked);
+    if (checked) {
+      applyRightsDateFromDividend();
+      applyRightsAnchorFromDividend();
+    }
+  }
+
+  syncRightsWithDividendCb?.addEventListener("change", () => {
+    setRightsSyncedUi(syncRightsWithDividendCb.checked);
+  });
+  dividendDateInput?.addEventListener("input", applyRightsDateFromDividend);
+  dividendDateInput?.addEventListener("change", applyRightsDateFromDividend);
+  dividendAnchorInput?.addEventListener("input", applyRightsAnchorFromDividend);
+  dividendAnchorInput?.addEventListener("change", applyRightsAnchorFromDividend);
+
   openManualEventBtn.addEventListener("click", () => {
     if (manualEventSymbol) {
       manualEventSymbol.textContent = `${stock.symbol} ${stock.name || ""}`.trim();
@@ -176,6 +213,8 @@ function bindManualEventForm() {
     event.preventDefault();
     const fd = new FormData(manualEventForm);
     const anchorClose = Number(fd.get("anchorClose"));
+    const rightsAnchorRaw = String(fd.get("rightsAnchorClose") || "").trim();
+    const rightsAnchorClose = rightsAnchorRaw !== "" ? Number(rightsAnchorRaw) : null;
     const cashRaw = String(fd.get("cashDividend") || "").trim();
     const stockRaw = String(fd.get("stockDividend") || "").trim();
     const dividendDate = normalizeDateInputToYmd(fd.get("dividendDate"));
@@ -203,6 +242,19 @@ function bindManualEventForm() {
     if ((hasCash && !Number.isFinite(cashDividend)) || (hasStock && !Number.isFinite(stockDividend))) {
       alert("請確認股利欄位是有效數字。");
       return;
+    }
+    const splitExDates = Boolean(
+      hasCash && hasStock && dividendDate && rightsDate && dividendDate !== rightsDate
+    );
+    let anchorForRights = anchorClose;
+    if (splitExDates) {
+      if (!Number.isFinite(rightsAnchorClose) || rightsAnchorClose <= 0) {
+        alert("除權息為不同日期時，請填有效的除權前股價。");
+        return;
+      }
+      anchorForRights = rightsAnchorClose;
+    } else if (hasStock && !hasCash && Number.isFinite(rightsAnchorClose) && rightsAnchorClose > 0) {
+      anchorForRights = rightsAnchorClose;
     }
     const payloads = [];
     if (hasCash && hasStock && dividendDate && rightsDate && dividendDate === rightsDate) {
@@ -246,9 +298,9 @@ function bindManualEventForm() {
           typeRaw: "manual_form",
           cashDividend: null,
           stockDividend,
-          anchorClose,
+          anchorClose: anchorForRights,
           referenceAnchorDate: null,
-          referencePrice: calcReferencePrice(anchorClose, null, stockDividend, type),
+          referencePrice: calcReferencePrice(anchorForRights, null, stockDividend, type),
           referencePriceMode: "manual_anchor_input",
           source: "manual_user_input"
         });
