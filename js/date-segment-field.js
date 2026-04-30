@@ -106,7 +106,6 @@ function bindOneWrap(wrap) {
   const mEl = wrap.querySelector(".date-part-m");
   const dEl = wrap.querySelector(".date-part-d");
   const hidden = wrap.querySelector('input[type="hidden"]');
-  const btn = wrap.querySelector(".date-cal-btn");
   const native = wrap.querySelector(".date-native-pick");
   if (!yEl || !mEl || !dEl || !hidden) return;
 
@@ -185,19 +184,6 @@ function bindOneWrap(wrap) {
     syncHiddenFromParts(wrap);
   });
 
-  btn?.addEventListener("click", () => {
-    if (!native || btn?.disabled) return;
-    if (typeof native.showPicker === "function") {
-      try {
-        native.showPicker();
-        return;
-      } catch {
-        /* fall through */
-      }
-    }
-    native.click();
-  });
-
   native?.addEventListener("change", () => {
     const v = native.value;
     if (!v) {
@@ -259,6 +245,8 @@ export function setDateFieldReadOnly(wrap, readOnly) {
   if (btn) btn.disabled = Boolean(readOnly);
   const native = wrap.querySelector(".date-native-pick");
   if (native) native.disabled = Boolean(readOnly);
+  const slot = wrap.querySelector(".date-cal-slot");
+  if (slot) slot.classList.toggle("date-cal-slot--disabled", Boolean(readOnly));
 }
 
 /**

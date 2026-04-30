@@ -76,8 +76,10 @@
             <input type="text" class="date-part date-part-d" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="日2碼" placeholder="DD"/>
           </div>
           <input type="hidden" name="dividendDate" value="" />
-          <button type="button" class="date-cal-btn" aria-label="日曆選擇">📅</button>
-          <input type="date" class="date-native-pick" title="日曆選擇" tabindex="-1" />
+          <div class="date-cal-slot">
+            <button type="button" class="date-cal-btn" tabindex="-1" aria-hidden="true">📅</button>
+            <input type="date" class="date-native-pick" aria-label="以日曆選擇除息日" title="日曆選擇" />
+          </div>
         </div>
       </label>
       <label>除權前股價
@@ -96,8 +98,10 @@
             <input type="text" class="date-part date-part-d" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="日2碼" placeholder="DD"/>
           </div>
           <input type="hidden" name="rightsDate" value="" />
-          <button type="button" class="date-cal-btn" aria-label="日曆選擇">📅</button>
-          <input type="date" class="date-native-pick" title="日曆選擇" tabindex="-1" />
+          <div class="date-cal-slot">
+            <button type="button" class="date-cal-btn" tabindex="-1" aria-hidden="true">📅</button>
+            <input type="date" class="date-native-pick" aria-label="以日曆選擇除權日" title="日曆選擇" />
+          </div>
         </div>
       </label>
       <div class="manual-actions">
@@ -123,8 +127,10 @@
             <input type="text" class="date-part date-part-d" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="日2碼" />
           </div>
           <input type="hidden" name="eventDate" value="" required />
-          <button type="button" class="date-cal-btn" aria-label="日曆選擇">📅</button>
-          <input type="date" class="date-native-pick" title="日曆選擇" tabindex="-1" />
+          <div class="date-cal-slot">
+            <button type="button" class="date-cal-btn" tabindex="-1" aria-hidden="true">📅</button>
+            <input type="date" class="date-native-pick" aria-label="以日曆選擇除權息日期" title="日曆選擇" />
+          </div>
         </div>
       </label>
       <label>除息前股價
