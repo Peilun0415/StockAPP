@@ -1,6 +1,7 @@
 {
   "name": "stockapp",
   "private": true,
+  "homepage": "https://peilun0415.github.io/StockAPP",
   "type": "module",
   "scripts": {
     "sync:corporate": "node scripts/sync-twt48u-to-firestore.mjs"

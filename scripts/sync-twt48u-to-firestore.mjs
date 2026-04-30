@@ -3,7 +3,8 @@
  * 環境變數（擇一）：
  *   FIREBASE_SERVICE_ACCOUNT — JSON 字串（GitHub Actions 建議用 secrets）
  *   GOOGLE_APPLICATION_CREDENTIALS — service account 檔案路徑（本機）
- *   PUBLIC_APP_URL — 選填；推播點擊後開啟的網站根網址（未設則用 service account 內 project_id 推成 https://{id}.web.app）
+ *   PUBLIC_APP_URL — 選填；推播點擊後開啟的網站根網址（優先於 package.json 的 homepage）
+ *   未設 PUBLIC_APP_URL 且 package.json 有合法 homepage 時使用 homepage；再退回 https://{project_id}.web.app
  *   SKIP_FCM — 設為 "1" 時不發送 FCM（僅同步 Firestore）
  *   FCM_NEW_EVENT_BULK_THRESHOLD — 單次同步「新事件」超過此筆數時略過推播（預設 150，避免首次全量匯入狂發通知）
  *   FCM_ALLOW_BULK — 設為 "1" 時略過上述筆數保護
@@ -13,6 +14,9 @@
 import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   fetchTwseRowsByYear,
   parseCorporateRow,
@@ -20,7 +24,23 @@ import {
   formatDateYmd
 } from "./twt48u-parse.mjs";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 const YEARS_BACK = Number(process.env.TWT48U_YEARS_BACK || "5");
+
+function readHomepageFromPackageJson() {
+  try {
+    const raw = readFileSync(join(__dirname, "../package.json"), "utf8");
+    const pkg = JSON.parse(raw);
+    const h = pkg.homepage;
+    if (typeof h === "string" && /^https?:\/\//i.test(h.trim())) {
+      return h.trim().replace(/\/$/, "");
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
 
 function initAdmin() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -63,6 +83,10 @@ function defaultOpenBaseUrl() {
   const fromEnv = process.env.PUBLIC_APP_URL;
   if (fromEnv) {
     return String(fromEnv).replace(/\/$/, "");
+  }
+  const fromPkg = readHomepageFromPackageJson();
+  if (fromPkg) {
+    return fromPkg;
   }
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!raw) return "";
