@@ -3,6 +3,7 @@ import { fetchRealtimePrices } from "./market-api.js";
 import { fetchAnnualCorporateActions } from "./corporate-actions-api.js";
 import { loadMarketCorporateSummaries, loadLatestCompletedEvents } from "./market-corporate-store.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
+import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
@@ -621,6 +622,14 @@ async function boot() {
           setPageLoading(false);
         }
       }
+    });
+
+    const pushBtn = document.querySelector("#pushNotifyBtn");
+    const pushStatus = document.querySelector("#pushNotifyStatus");
+    bindPushNotificationControls({
+      getUid: () => currentUid,
+      button: pushBtn,
+      statusEl: pushStatus
     });
   } finally {
     if (!currentUid) {

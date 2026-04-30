@@ -36,6 +36,14 @@
 
     <section id="stockSummary" class="stock-summary"></section>
 
+    <div id="pushNotifyRow" class="push-notify-row push-notify-row--detail" hidden>
+      <p class="push-notify-text">追蹤股因 TWT48U 新增除權息時通知此裝置。Android 可直接開啟；iOS 請先將本網站「加入主畫面」後再按下方按鈕。</p>
+      <div class="push-notify-actions">
+        <button type="button" id="pushNotifyBtn" class="push-notify-btn">開啟通知</button>
+        <span id="pushNotifyStatus" class="push-notify-status" aria-live="polite"></span>
+      </div>
+    </div>
+
     <section class="time-filter">
       <button id="openManualEventBtn" type="button" class="manual-event-btn">+ 新增歷史資訊</button>
       <div class="pills" id="rangePills">

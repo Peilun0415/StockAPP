@@ -3,11 +3,16 @@
  * 環境變數（擇一）：
  *   FIREBASE_SERVICE_ACCOUNT — JSON 字串（GitHub Actions 建議用 secrets）
  *   GOOGLE_APPLICATION_CREDENTIALS — service account 檔案路徑（本機）
+ *   PUBLIC_APP_URL — 選填；推播點擊後開啟的網站根網址（未設則用 service account 內 project_id 推成 https://{id}.web.app）
+ *   SKIP_FCM — 設為 "1" 時不發送 FCM（僅同步 Firestore）
+ *   FCM_NEW_EVENT_BULK_THRESHOLD — 單次同步「新事件」超過此筆數時略過推播（預設 150，避免首次全量匯入狂發通知）
+ *   FCM_ALLOW_BULK — 設為 "1" 時略過上述筆數保護
  *
  * 用法：node scripts/sync-twt48u-to-firestore.mjs
  */
 import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import {
   fetchTwseRowsByYear,
   parseCorporateRow,
@@ -30,6 +35,135 @@ function initAdmin() {
   }
   console.error("請設定 FIREBASE_SERVICE_ACCOUNT（JSON 字串）或 GOOGLE_APPLICATION_CREDENTIALS");
   process.exit(1);
+}
+
+function typeLabelFromTypeText(typeText) {
+  const t = String(typeText || "");
+  if (t.includes("權") && t.includes("息")) return "權息";
+  if (t.includes("息")) return "息";
+  return "權";
+}
+
+async function prefetchExistingEventIds(db, eventRefsWithMeta) {
+  const existing = new Set();
+  const chunkSize = 300;
+  for (let i = 0; i < eventRefsWithMeta.length; i += chunkSize) {
+    const chunk = eventRefsWithMeta.slice(i, i + chunkSize);
+    const snaps = await db.getAll(...chunk.map((c) => c.ref));
+    snaps.forEach((snap, j) => {
+      if (snap.exists) {
+        existing.add(chunk[j].eid);
+      }
+    });
+  }
+  return existing;
+}
+
+function defaultOpenBaseUrl() {
+  const fromEnv = process.env.PUBLIC_APP_URL;
+  if (fromEnv) {
+    return String(fromEnv).replace(/\/$/, "");
+  }
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) return "";
+  try {
+    const pid = JSON.parse(raw).project_id;
+    return pid ? `https://${pid}.web.app` : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * 對「本次首次出現」的除權息事件，通知有追蹤該股且已註冊 FCM token 的使用者。
+ */
+async function notifyWatchersOfNewCorporateEvents(db, newEventMetas) {
+  if (!newEventMetas.length) {
+    return;
+  }
+  const bulkThreshold = Number(process.env.FCM_NEW_EVENT_BULK_THRESHOLD || "150");
+  if (newEventMetas.length > bulkThreshold && process.env.FCM_ALLOW_BULK !== "1") {
+    console.warn(
+      `FCM: skip — ${newEventMetas.length} new event doc(s) exceeds threshold ${bulkThreshold}（可能是首次匯入）。`
+      + " 若確定要推播請設 FCM_ALLOW_BULK=1，或調高 FCM_NEW_EVENT_BULK_THRESHOLD。"
+    );
+    return;
+  }
+  if (process.env.SKIP_FCM === "1") {
+    console.log(`FCM: skipped (SKIP_FCM=1), ${newEventMetas.length} new event(s)`);
+    return;
+  }
+
+  let messaging;
+  try {
+    messaging = getMessaging();
+  } catch (e) {
+    console.warn("FCM: getMessaging failed, skip push", e);
+    return;
+  }
+
+  const baseUrl = defaultOpenBaseUrl();
+  const fullOpenUrl = baseUrl ? `${baseUrl}/index.html` : "";
+
+  const bySymbol = new Map();
+  for (const meta of newEventMetas) {
+    const { ev, typeLabel } = meta;
+    const sym = ev.symbol;
+    const line = `${ev.name || sym}（${sym}）${ev.dateText || ""} ${typeLabel}`;
+    if (!bySymbol.has(sym)) {
+      bySymbol.set(sym, []);
+    }
+    bySymbol.get(sym).push(line);
+  }
+
+  const uidToLines = new Map();
+  for (const [sym, lines] of bySymbol) {
+    const qs = await db.collectionGroup("watchlist").where("symbol", "==", sym).get();
+    for (const doc of qs.docs) {
+      const uid = doc.ref.parent.parent.id;
+      if (!uidToLines.has(uid)) {
+        uidToLines.set(uid, []);
+      }
+      uidToLines.get(uid).push(...lines);
+    }
+  }
+
+  for (const [uid, allLines] of uidToLines) {
+    const uniqueLines = [...new Set(allLines)];
+    const title = "狗狗財經 · 追蹤股除權息更新";
+    const body = uniqueLines.slice(0, 8).join("；")
+      + (uniqueLines.length > 8 ? ` …等${uniqueLines.length}筆` : "");
+    const tokenSnap = await db.collection("users").doc(uid).collection("messagingTokens").get();
+    const tokens = tokenSnap.docs.map((d) => d.data()?.token).filter((t) => typeof t === "string" && t.length > 0);
+    if (!tokens.length) {
+      continue;
+    }
+
+    const data = {
+      title,
+      body: body.slice(0, 3500),
+      url: fullOpenUrl || "/index.html"
+    };
+    const stringData = Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, String(v)])
+    );
+
+    for (let i = 0; i < tokens.length; i += 500) {
+      const batchTokens = tokens.slice(i, i + 500);
+      const res = await messaging.sendEachForMulticast({
+        tokens: batchTokens,
+        data: stringData
+      });
+      if (res.failureCount) {
+        const failed = res.responses
+          .map((r, idx) => ({ r, token: batchTokens[idx] }))
+          .filter((x) => !x.r.success);
+        console.warn(`FCM: ${res.failureCount} failure(s) uid=${uid}`, failed.slice(0, 3));
+      }
+    }
+  }
+
+  console.log(`FCM: new symbols=${bySymbol.size}, users notified=${uidToLines.size}`);
 }
 
 function eventDocId(symbol, dateText, typeText) {
@@ -190,6 +324,18 @@ async function main() {
     }
   }
 
+  const eventRefsWithMeta = [];
+  for (const ev of events) {
+    const sym = ev.symbol;
+    const typeLabel = typeLabelFromTypeText(ev.typeText);
+    const eid = eventDocId(sym, ev.dateText, typeLabel);
+    const ref = db.collection("marketCorporateActions").doc(sym).collection("events").doc(eid);
+    eventRefsWithMeta.push({ ref, eid, ev, typeLabel });
+  }
+  const existingEids = await prefetchExistingEventIds(db, eventRefsWithMeta);
+  const newEventMetas = eventRefsWithMeta.filter((x) => !existingEids.has(x.eid));
+  console.log(`TWT48U events: ${events.length}, first-time event docs: ${newEventMetas.length}`);
+
   let batch = db.batch();
   let n = 0;
   const commitIfNeeded = async () => {
@@ -202,11 +348,7 @@ async function main() {
 
   for (const ev of events) {
     const sym = ev.symbol;
-    const typeLabel = ev.typeText.includes("權") && ev.typeText.includes("息")
-      ? "權息"
-      : ev.typeText.includes("息")
-        ? "息"
-        : "權";
+    const typeLabel = typeLabelFromTypeText(ev.typeText);
     const exDt = parseExDateSlash(ev.dateText);
     const anchor = exDt && canLockReferenceForEx(exDt)
       ? await findAnchorCloseBeforeEx(sym, exDt)
@@ -283,6 +425,8 @@ async function main() {
   if (n > 0) {
     await batch.commit();
   }
+
+  await notifyWatchersOfNewCorporateEvents(db, newEventMetas);
 
   console.log(`Done. Events: ${events.length}, symbols with summary: ${summaryBySymbol.size}`);
 }

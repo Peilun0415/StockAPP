@@ -36,6 +36,13 @@
     <section class="section-title-wrap">
       <!-- <h1>我的除權息追蹤清單</h1> -->
       <p class="subtitle">點選卡片可查看時間軸與完整歷史紀錄</p>
+      <div id="pushNotifyRow" class="push-notify-row" hidden>
+        <p class="push-notify-text">追蹤股因 TWT48U 新增除權息時通知此裝置。Android 可直接開啟；iOS 請先將本網站「加入主畫面」後再按下方按鈕。</p>
+        <div class="push-notify-actions">
+          <button type="button" id="pushNotifyBtn" class="push-notify-btn">開啟通知</button>
+          <span id="pushNotifyStatus" class="push-notify-status" aria-live="polite"></span>
+        </div>
+      </div>
     </section>
 
     <section id="stockList" class="stock-list" aria-live="polite"></section>

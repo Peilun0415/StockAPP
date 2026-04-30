@@ -2,8 +2,8 @@ name: Sync TWT48U to Firestore
 
 on:
   schedule:
-    # UTC 16:00 ≈ 台灣 00:00（隔日）；可依需求調整
-    - cron: "0 16 * * *"
+    # UTC 02:00 = 台灣時間 10:00（GitHub Actions 以 UTC 為準）
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
@@ -24,4 +24,5 @@ jobs:
       - name: Sync TWT48U to Firestore
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
         run: npm run sync:corporate

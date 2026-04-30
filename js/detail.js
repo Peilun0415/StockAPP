@@ -7,6 +7,7 @@ import {
   deleteManualCorporateEvent
 } from "./market-corporate-store.js";
 import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
+import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
 import { loadStockMasterList } from "./stock-master.js";
@@ -27,6 +28,8 @@ const authBtn = document.querySelector("#authBtn");
 const authUserEl = document.querySelector("#authUser");
 const authAvatarEl = document.querySelector("#authAvatar");
 const pageLoadingEl = document.querySelector("#pageLoading");
+
+let detailUid = null;
 const openManualEventBtn = document.querySelector("#openManualEventBtn");
 const manualEventDialog = document.querySelector("#manualEventDialog");
 const manualEventForm = document.querySelector("#manualEventForm");
@@ -541,7 +544,8 @@ rangePills.addEventListener("click", (event) => {
 
 async function initialize() {
   const returnTo = window.location.pathname + window.location.search;
-  await requireAuth(returnTo);
+  const user = await requireAuth(returnTo);
+  detailUid = user?.uid ?? null;
 
   try {
     const master = await loadStockMasterList();
@@ -601,6 +605,7 @@ async function boot() {
       avatarEl: authAvatarEl,
       appBarOnlyLogout: true,
       onUserChanged: (u) => {
+        detailUid = u?.uid ?? null;
         // 登出後直接回到登入頁，避免在未登入狀態停留
         if (!u && isAuthAvailable()) {
           const returnTo = window.location.pathname + window.location.search;
@@ -613,6 +618,13 @@ async function boot() {
     bindEditHistoryForm();
     bindHistoryActions();
     await initialize();
+    const pushBtn = document.querySelector("#pushNotifyBtn");
+    const pushStatus = document.querySelector("#pushNotifyStatus");
+    bindPushNotificationControls({
+      getUid: () => detailUid,
+      button: pushBtn,
+      statusEl: pushStatus
+    });
   } finally {
     setPageLoading(false);
   }

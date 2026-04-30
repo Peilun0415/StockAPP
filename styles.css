@@ -223,6 +223,55 @@ body {
   font-size: 14px;
 }
 
+.push-notify-row {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #c8daf5;
+  background: linear-gradient(135deg, #f0f6ff 0%, #fff 100%);
+}
+
+.push-notify-row--detail {
+  margin: 0 16px 12px;
+}
+
+.push-notify-text {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #3a4a5e;
+  line-height: 1.45;
+}
+
+.push-notify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.push-notify-btn {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #3d7eea 0%, #2f6ad4 100%);
+  box-shadow: 0 2px 8px rgba(47, 106, 212, 0.35);
+}
+
+.push-notify-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.push-notify-status {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .stock-list {
   display: flex;
   flex-direction: column;
