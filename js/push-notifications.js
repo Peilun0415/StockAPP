@@ -87,6 +87,32 @@ export function bindPushNotificationControls({ getUid, button, statusEl }) {
   };
   refresh();
 
+  // 從瀏覽器設定關閉／開啟網站通知後，頁面不會自動重跑；回到分頁或權限變更時再檢查一次。
+  const onVisibility = () => {
+    if (document.visibilityState === "visible") refresh();
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+  const onWindowFocus = () => refresh();
+  window.addEventListener("focus", onWindowFocus);
+
+  let disposed = false;
+  /** @type {PermissionStatus | null} */
+  let notificationPermStatus = null;
+  try {
+    if (navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: "notifications" })
+        .then((status) => {
+          if (disposed) return;
+          notificationPermStatus = status;
+          status.addEventListener("change", refresh);
+        })
+        .catch(() => {});
+    }
+  } catch {
+    // 部分瀏覽器不支援 notifications 的 permissions query
+  }
+
   const onClick = async () => {
     const uid = typeof getUid === "function" ? getUid() : null;
     if (!uid) {
@@ -138,5 +164,11 @@ export function bindPushNotificationControls({ getUid, button, statusEl }) {
     }
   };
   button.addEventListener("click", onClick);
-  return () => button.removeEventListener("click", onClick);
+  return () => {
+    disposed = true;
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("focus", onWindowFocus);
+    if (notificationPermStatus) notificationPermStatus.removeEventListener("change", refresh);
+    button.removeEventListener("click", onClick);
+  };
 }
