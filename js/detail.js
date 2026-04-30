@@ -10,6 +10,12 @@ import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
 import { loadStockMasterList } from "./stock-master.js";
+import {
+  initDateSegmentFields,
+  resetDateFieldsInForm,
+  setDateFieldReadOnly,
+  setDateFieldValue
+} from "./date-segment-field.js";
 
 const topSymbol = document.querySelector("#detailSymbolTop");
 const topName = document.querySelector("#detailNameTop");
@@ -154,8 +160,9 @@ function upsertHistoryEvent(event) {
 function resetManualForm() {
   if (!manualEventForm) return;
   manualEventForm.reset();
-  const rights = manualEventForm.elements.rightsDate;
-  if (rights) rights.readOnly = false;
+  resetDateFieldsInForm(manualEventForm);
+  const rightsWrap = manualEventForm.querySelector('.date-segment-field[data-date-name="rightsDate"]');
+  setDateFieldReadOnly(rightsWrap, false);
   const rightsAnchor = manualEventForm.elements.rightsAnchorClose;
   if (rightsAnchor) rightsAnchor.readOnly = false;
 }
@@ -163,14 +170,14 @@ function resetManualForm() {
 function bindManualEventForm() {
   if (!openManualEventBtn || !manualEventDialog || !manualEventForm) return;
   const syncRightsWithDividendCb = manualEventForm.querySelector("#syncRightsWithDividendDate");
-  const dividendDateInput = manualEventForm.elements.dividendDate;
-  const rightsDateInput = manualEventForm.elements.rightsDate;
+  const dividendHidden = manualEventForm.querySelector('input[name="dividendDate"]');
+  const rightsDateWrap = manualEventForm.querySelector('.date-segment-field[data-date-name="rightsDate"]');
   const dividendAnchorInput = manualEventForm.elements.anchorClose;
   const rightsAnchorInput = manualEventForm.elements.rightsAnchorClose;
 
   function applyRightsDateFromDividend() {
-    if (!syncRightsWithDividendCb?.checked || !dividendDateInput || !rightsDateInput) return;
-    rightsDateInput.value = dividendDateInput.value;
+    if (!syncRightsWithDividendCb?.checked || !dividendHidden || !rightsDateWrap) return;
+    setDateFieldValue(rightsDateWrap, dividendHidden.value);
   }
 
   function applyRightsAnchorFromDividend() {
@@ -179,7 +186,7 @@ function bindManualEventForm() {
   }
 
   function setRightsSyncedUi(checked) {
-    if (rightsDateInput) rightsDateInput.readOnly = Boolean(checked);
+    setDateFieldReadOnly(rightsDateWrap, checked);
     if (rightsAnchorInput) rightsAnchorInput.readOnly = Boolean(checked);
     if (checked) {
       applyRightsDateFromDividend();
@@ -190,8 +197,8 @@ function bindManualEventForm() {
   syncRightsWithDividendCb?.addEventListener("change", () => {
     setRightsSyncedUi(syncRightsWithDividendCb.checked);
   });
-  dividendDateInput?.addEventListener("input", applyRightsDateFromDividend);
-  dividendDateInput?.addEventListener("change", applyRightsDateFromDividend);
+  dividendHidden?.addEventListener("input", applyRightsDateFromDividend);
+  dividendHidden?.addEventListener("change", applyRightsDateFromDividend);
   dividendAnchorInput?.addEventListener("input", applyRightsAnchorFromDividend);
   dividendAnchorInput?.addEventListener("change", applyRightsAnchorFromDividend);
 
@@ -356,7 +363,8 @@ function bindHistoryActions() {
       }
       editHistoryForm.elements.originalDate.value = date || "";
       editHistoryForm.elements.originalType.value = type || "";
-      editHistoryForm.elements.eventDate.value = normalizeYmdToDateInput(target.date);
+      const eventDateWrap = editHistoryForm.querySelector('.date-segment-field[data-date-name="eventDate"]');
+      setDateFieldValue(eventDateWrap, normalizeYmdToDateInput(target.date));
       editHistoryForm.elements.anchorClose.value = target.anchorClose ?? "";
       editHistoryForm.elements.cashDividend.value = target.cashDividend ?? "";
       editHistoryForm.elements.stockDividend.value = target.stockDividend ?? "";
@@ -600,6 +608,7 @@ async function boot() {
         }
       }
     });
+    initDateSegmentFields(document);
     bindManualEventForm();
     bindEditHistoryForm();
     bindHistoryActions();

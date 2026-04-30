@@ -728,6 +728,68 @@ h2 {
   font-size: 14px;
 }
 
+.manual-event-form .date-segment-field {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.manual-event-form .date-segment-parts {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.manual-event-form .date-slash {
+  color: #8b95a8;
+  font-weight: 600;
+  user-select: none;
+  margin: 0 2px;
+}
+
+.manual-event-form .date-part {
+  width: 3rem;
+  min-width: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.manual-event-form .date-part-y {
+  width: 4.25rem;
+}
+
+.manual-event-form .date-cal-btn {
+  flex-shrink: 0;
+  border: 1px solid #d5deec;
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: #f4f8ff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.manual-event-form .date-cal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.manual-event-form .date-native-pick {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
 .manual-checkbox-row {
   display: flex;
   flex-direction: row;

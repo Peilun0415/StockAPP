@@ -58,7 +58,7 @@
       <p class="manual-hint">股票：<span id="manualEventSymbol">--</span></p>
       <label class="manual-checkbox-row" style="display: flex;">
         <input type="checkbox" id="syncRightsWithDividendDate" />
-        除權日、除權前股價與除息日／除息前股價同步
+        除權息日期同一天
       </label>
       <label>除息前股價
         <input name="anchorClose" type="number" inputmode="decimal" step="0.0001" min="0" required />
@@ -67,7 +67,18 @@
         <input name="cashDividend" type="number" inputmode="decimal" step="0.0001" min="0" />
       </label>
       <label>除息日
-        <input name="dividendDate" type="date" />
+        <div class="date-segment-field" data-date-name="dividendDate" role="group" aria-label="除息日">
+          <div class="date-segment-parts">
+            <input type="text" class="date-part date-part-y" maxlength="4" inputmode="numeric" autocomplete="off" aria-label="西元年4碼"  placeholder="YYYY"/>
+            <span class="date-slash" aria-hidden="true">/</span>
+            <input type="text" class="date-part date-part-m" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="月2碼" placeholder="MM"/>
+            <span class="date-slash" aria-hidden="true">/</span>
+            <input type="text" class="date-part date-part-d" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="日2碼" placeholder="DD"/>
+          </div>
+          <input type="hidden" name="dividendDate" value="" />
+          <button type="button" class="date-cal-btn" aria-label="日曆選擇">📅</button>
+          <input type="date" class="date-native-pick" title="日曆選擇" tabindex="-1" />
+        </div>
       </label>
       <label>除權前股價
         <input name="rightsAnchorClose" type="number" inputmode="decimal" step="0.0001" min="0" />
@@ -76,7 +87,18 @@
         <input name="stockDividend" type="number" inputmode="decimal" step="0.0001" min="0" />
       </label>
       <label>除權日
-        <input name="rightsDate" type="date" />
+        <div class="date-segment-field" data-date-name="rightsDate" role="group" aria-label="除權日">
+          <div class="date-segment-parts">
+            <input type="text" class="date-part date-part-y" maxlength="4" inputmode="numeric" autocomplete="off" aria-label="西元年4碼" placeholder="YYYY"/>
+            <span class="date-slash" aria-hidden="true">/</span>
+            <input type="text" class="date-part date-part-m" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="月2碼" placeholder="MM"/>
+            <span class="date-slash" aria-hidden="true">/</span>
+            <input type="text" class="date-part date-part-d" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="日2碼" placeholder="DD"/>
+          </div>
+          <input type="hidden" name="rightsDate" value="" />
+          <button type="button" class="date-cal-btn" aria-label="日曆選擇">📅</button>
+          <input type="date" class="date-native-pick" title="日曆選擇" tabindex="-1" />
+        </div>
       </label>
       <div class="manual-actions">
         <button type="button" id="cancelManualEventBtn" class="manual-cancel-btn">取消</button>
@@ -92,7 +114,18 @@
       <input type="hidden" name="originalDate" />
       <input type="hidden" name="originalType" />
       <label>除權息日期
-        <input name="eventDate" type="date" required />
+        <div class="date-segment-field" data-date-name="eventDate" role="group" aria-label="除權息日期">
+          <div class="date-segment-parts">
+            <input type="text" class="date-part date-part-y" maxlength="4" inputmode="numeric" autocomplete="off" aria-label="西元年4碼" />
+            <span class="date-slash" aria-hidden="true">/</span>
+            <input type="text" class="date-part date-part-m" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="月2碼" />
+            <span class="date-slash" aria-hidden="true">/</span>
+            <input type="text" class="date-part date-part-d" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="日2碼" />
+          </div>
+          <input type="hidden" name="eventDate" value="" required />
+          <button type="button" class="date-cal-btn" aria-label="日曆選擇">📅</button>
+          <input type="date" class="date-native-pick" title="日曆選擇" tabindex="-1" />
+        </div>
       </label>
       <label>除息前股價
         <input name="anchorClose" type="number" inputmode="decimal" step="0.0001" min="0" required />
