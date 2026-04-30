@@ -24,5 +24,4 @@ jobs:
       - name: Sync TWT48U to Firestore
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
         run: npm run sync:corporate
