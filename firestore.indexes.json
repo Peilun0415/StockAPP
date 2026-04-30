@@ -3,11 +3,11 @@
   "fieldOverrides": [
     {
       "collectionGroup": "watchlist",
-      "queryScope": "COLLECTION",
-      "fields": [
+      "fieldPath": "symbol",
+      "indexes": [
         {
-          "fieldPath": "symbol",
-          "order": "ASCENDING"
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
         }
       ]
     }

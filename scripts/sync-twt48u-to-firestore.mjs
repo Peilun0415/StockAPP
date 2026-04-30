@@ -47,11 +47,17 @@ function initAdmin() {
   if (raw) {
     const json = JSON.parse(raw);
     initializeApp({ credential: cert(json) });
-    return;
+    return {
+      credentialSource: "FIREBASE_SERVICE_ACCOUNT",
+      projectId: json?.project_id || "(unknown)"
+    };
   }
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     initializeApp({ credential: applicationDefault() });
-    return;
+    return {
+      credentialSource: "GOOGLE_APPLICATION_CREDENTIALS",
+      projectId: process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "(from ADC)"
+    };
   }
   console.error("請設定 FIREBASE_SERVICE_ACCOUNT（JSON 字串）或 GOOGLE_APPLICATION_CREDENTIALS");
   process.exit(1);
@@ -318,7 +324,10 @@ function calcReferencePrice(basePrice, cashDividend, stockDividend, typeLabel) {
 }
 
 async function main() {
-  initAdmin();
+  const adminInfo = initAdmin();
+  console.log(
+    `[sync] firebase project check: source=${adminInfo.credentialSource}, project_id=${adminInfo.projectId}`
+  );
   const db = getFirestore();
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
