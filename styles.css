@@ -363,6 +363,19 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
+.watchlist-edit-item.is-touch-source {
+  opacity: 0.28;
+}
+
+.watchlist-drag-ghost {
+  position: fixed;
+  z-index: 130;
+  pointer-events: none;
+  opacity: 0.96;
+  transform: scale(1.01);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.2);
+}
+
 .watchlist-drag-handle {
   color: var(--muted);
   font-size: 15px;

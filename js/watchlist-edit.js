@@ -28,6 +28,8 @@ let touchPendingEl = null;
 let touchStartPoint = null;
 let touchStartTimer = null;
 let suppressNextClick = false;
+let touchGhostEl = null;
+let touchOffsetY = 0;
 let skipFirstAuthReloadForUid = null;
 const TOUCH_HOLD_MS = 180;
 const TOUCH_MOVE_CANCEL_PX = 10;
@@ -283,6 +285,32 @@ function clearTouchPending() {
   touchStartPoint = null;
 }
 
+function removeTouchGhost() {
+  if (touchGhostEl?.parentNode) {
+    touchGhostEl.parentNode.removeChild(touchGhostEl);
+  }
+  touchGhostEl = null;
+}
+
+function updateTouchGhostPosition(touch) {
+  if (!touchGhostEl) return;
+  const top = touch.clientY - touchOffsetY;
+  touchGhostEl.style.top = `${Math.max(8, top)}px`;
+}
+
+function createTouchGhost(sourceEl, touch) {
+  removeTouchGhost();
+  const rect = sourceEl.getBoundingClientRect();
+  touchOffsetY = touch.clientY - rect.top;
+  const ghost = sourceEl.cloneNode(true);
+  ghost.classList.add("watchlist-drag-ghost");
+  ghost.style.width = `${rect.width}px`;
+  ghost.style.left = `${rect.left}px`;
+  ghost.style.top = `${rect.top}px`;
+  document.body.appendChild(ghost);
+  touchGhostEl = ghost;
+}
+
 listEl?.addEventListener("touchstart", (event) => {
   const touch = event.touches?.[0];
   if (!touch) return;
@@ -296,6 +324,8 @@ listEl?.addEventListener("touchstart", (event) => {
     touchDragging = Boolean(touchDragEl);
     if (touchDragEl) {
       touchDragEl.classList.add("is-dragging");
+      touchDragEl.classList.add("is-touch-source");
+      createTouchGhost(touchDragEl, touch);
       setDragHint(true);
     }
     clearTouchPending();
@@ -316,6 +346,7 @@ listEl?.addEventListener("touchmove", (event) => {
     return;
   }
   event.preventDefault();
+  updateTouchGhostPosition(touch);
   const targetLi = closestWatchlistItemByPoint(touch.clientX, touch.clientY);
   if (!targetLi || targetLi === touchDragEl) return;
   const rect = targetLi.getBoundingClientRect();
@@ -337,6 +368,8 @@ async function finishTouchDrag() {
     return;
   }
   touchDragEl.classList.remove("is-dragging");
+  touchDragEl.classList.remove("is-touch-source");
+  removeTouchGhost();
   setDragHint(false);
   touchDragEl = null;
   touchDragging = false;
