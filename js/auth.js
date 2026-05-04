@@ -115,7 +115,7 @@ function setBtnState(btn, { text, disabled }) {
     const label = btn.querySelector?.(".auth-btn-label");
     if (label) {
       label.textContent = text;
-    } else {
+    } else if (!btn.querySelector?.(".auth-avatar")) {
       btn.textContent = text;
     }
     const gIcon = btn.querySelector?.(".google-g");
@@ -167,6 +167,7 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
   }
 
   let first = true;
+  let closeAuthMenu = () => {};
 
   const initial = await new Promise((resolve) => {
     authMod.onAuthStateChanged(auth, (user) => {
@@ -197,24 +198,74 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
   });
 
   if (authBtn) {
-    authBtn.addEventListener("click", async () => {
-      try {
-        setBtnState(authBtn, { disabled: true });
-        const user = auth.currentUser;
-        if (user) {
-          await signOutGoogle();
-        } else if (!appBarOnlyLogout) {
-          await signInWithGoogle();
+    const isMenuMode = authBtn.dataset?.authMenu === "true";
+    const authWrap = authBtn.closest?.(".auth-wrap");
+    const menuEl = isMenuMode ? authWrap?.querySelector?.(".auth-menu") : null;
+    const logoutItem = menuEl?.querySelector?.('[data-auth-action="logout"]');
+
+    if (menuEl && logoutItem) {
+      const close = () => {
+        menuEl.hidden = true;
+        authBtn.setAttribute("aria-expanded", "false");
+      };
+      const open = () => {
+        menuEl.hidden = false;
+        authBtn.setAttribute("aria-expanded", "true");
+      };
+      const onDocClick = (event) => {
+        if (!authWrap || !authWrap.contains(event.target)) {
+          close();
         }
-      } catch (error) {
-        console.warn(error);
-        alert(`登入/登出失敗：${error?.message || error}`);
-      } finally {
-        setBtnState(authBtn, { disabled: false });
-      }
-    });
+      };
+      const onEsc = (event) => {
+        if (event.key === "Escape") close();
+      };
+
+      authBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (authBtn.disabled) return;
+        if (menuEl.hidden) open();
+        else close();
+      });
+
+      logoutItem.addEventListener("click", async (event) => {
+        event.preventDefault();
+        close();
+        try {
+          setBtnState(authBtn, { disabled: true });
+          await signOutGoogle();
+        } catch (error) {
+          console.warn(error);
+          alert(`登出失敗：${error?.message || error}`);
+        } finally {
+          setBtnState(authBtn, { disabled: false });
+        }
+      });
+
+      document.addEventListener("click", onDocClick);
+      document.addEventListener("keydown", onEsc);
+      closeAuthMenu = close;
+    } else {
+      authBtn.addEventListener("click", async () => {
+        try {
+          setBtnState(authBtn, { disabled: true });
+          const user = auth.currentUser;
+          if (user) {
+            await signOutGoogle();
+          } else if (!appBarOnlyLogout) {
+            await signInWithGoogle();
+          }
+        } catch (error) {
+          console.warn(error);
+          alert(`登入/登出失敗：${error?.message || error}`);
+        } finally {
+          setBtnState(authBtn, { disabled: false });
+        }
+      });
+    }
   }
 
+  closeAuthMenu();
   return initial;
 }
 

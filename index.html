@@ -26,10 +26,13 @@
         <div id="searchSuggest" class="search-suggest" hidden></div>
       </div>
       <div class="auth-wrap">
-        <img id="authAvatar" class="auth-avatar" alt="使用者頭像" src="" />
-        <button id="authBtn" class="login-btn" type="button">
-          <span class="auth-btn-label">登出</span>
+        <button id="authBtn" class="login-btn auth-menu-btn" type="button" data-auth-menu="true" aria-haspopup="menu" aria-expanded="false" aria-label="帳號選單">
+          <img id="authAvatar" class="auth-avatar" alt="使用者頭像" src="" />
+          <span class="auth-menu-caret" aria-hidden="true">▾</span>
         </button>
+        <div class="auth-menu" role="menu" hidden>
+          <button type="button" class="auth-menu-item" data-auth-action="logout" role="menuitem">登出</button>
+        </div>
       </div>
     </header>
 

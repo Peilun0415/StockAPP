@@ -286,9 +286,8 @@ function renderCards(items) {
             ${showSignal ? `<p class="current-signal-line"><span class="badge ${signal.key}">${signal.icon} ${signal.text} 價差 ${ratioText}</span></p>` : ""}
             ${showPreviousEventBox ? `
               <div class="previous-event-box">
-                <p class="previous-event-title">上一期除權息（${previousDateText}）</p>
-                <p>參考價: ${previousRefText}</p>
-                <p>價差比: ${previousRatioText} <span class="badge ${previousSignal.key}">${previousSignalText}</span></p>
+                <p class="previous-event-title">上一期除權息（${previousDateText}）｜ 參考價：${previousRefText}</p>
+                <p><span class="badge ${previousSignal.key}">${previousSignalText} 價差 ${previousRatioText} </span></p>
               </div>
             ` : ""}
           </div>
