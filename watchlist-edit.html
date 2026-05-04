@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>編輯追蹤清單</title>
+  <meta name="theme-color" content="#4b8dff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="狗狗財經">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="icon" type="image/png" href="./icons/app-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/app-icon.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="pageLoading" class="page-loading" role="status" aria-live="polite">
+    <div class="page-loading-card">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>資料載入中...</p>
+    </div>
+  </div>
+  <main class="page page-watchlist-edit">
+    <header class="detail-head watchlist-edit-head">
+      <a href="./index.html" class="back-link" aria-label="返回追蹤清單">◀ 返回</a>
+      <div class="watchlist-edit-title-wrap">
+        <h1 class="watchlist-edit-title">編輯追蹤清單</h1>
+        <p class="watchlist-edit-hint">拖曳左側握把排序；搜尋可新增股票</p>
+      </div>
+      <div class="auth-wrap detail-auth-wrap">
+        <img id="authAvatar" class="auth-avatar" alt="使用者頭像" src="" />
+        <button id="authBtn" class="login-btn" type="button">
+          <span class="auth-btn-label">登出</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="watchlist-edit-search-section">
+      <div class="search-box watchlist-edit-search">
+        <input id="keyword" type="search" placeholder="搜尋股號或名稱以加入" aria-label="搜尋股號或名稱以加入追蹤">
+        <div id="searchSuggest" class="search-suggest" hidden></div>
+      </div>
+    </section>
+
+    <ul id="watchlistEditList" class="watchlist-edit-list" aria-label="追蹤股票清單"></ul>
+    <p id="watchlistEditEmpty" class="watchlist-edit-empty" hidden>尚無追蹤股，請用上方搜尋加入。</p>
+  </main>
+
+  <script>
+    window.__MIS_PROXY_ENDPOINT__ = "https://twse-mis-proxy.halloween1456.workers.dev/";
+  </script>
+  <script type="module" src="./js/watchlist-edit.js"></script>
+</body>
+</html>

@@ -48,7 +48,26 @@ function getLocalWatchlist(uid) {
 
 function saveLocalWatchlist(items, uid) {
   const LS_KEY = uid ? `${LS_KEY_BASE}_${uid}` : LS_KEY_BASE;
-  localStorage.setItem(LS_KEY, JSON.stringify(items));
+  const slim = (items || []).map((x) => ({ symbol: x.symbol, name: x.name || x.symbol }));
+  localStorage.setItem(LS_KEY, JSON.stringify(slim));
+}
+
+function sortWatchlistItems(raw) {
+  if (!raw?.length) {
+    return [];
+  }
+  const hasAnyOrder = raw.some((x) => Number.isFinite(Number(x?.sortOrder)));
+  if (!hasAnyOrder) {
+    return [...raw].sort((a, b) => String(a.symbol || "").localeCompare(String(b.symbol || "")));
+  }
+  return [...raw].sort((a, b) => {
+    const ao = Number(a.sortOrder);
+    const bo = Number(b.sortOrder);
+    const av = Number.isFinite(ao) ? ao : 1e9;
+    const bv = Number.isFinite(bo) ? bo : 1e9;
+    if (av !== bv) return av - bv;
+    return String(a.symbol || "").localeCompare(String(b.symbol || ""));
+  });
 }
 
 function getUserDoc(api, db, uid, symbol) {
@@ -74,7 +93,7 @@ export async function loadWatchlist(uid = null) {
     }
     return [...DEFAULT_ITEMS];
   }
-  return snap.docs.map((d) => d.data());
+  return sortWatchlistItems(snap.docs.map((d) => d.data()));
 }
 
 export async function addWatchStock(item, uid = null) {
@@ -89,7 +108,43 @@ export async function addWatchStock(item, uid = null) {
     return list;
   }
   const { db, api } = fb;
-  await api.setDoc(getUserDoc(api, db, uid, item.symbol), item, { merge: true });
+  const col = getUserCollection(api, db, uid);
+  const snap = await api.getDocs(col);
+  const ordered = sortWatchlistItems(snap.docs.map((d) => d.data()));
+  if (ordered.some((i) => i.symbol === item.symbol)) {
+    await api.setDoc(
+      getUserDoc(api, db, uid, item.symbol),
+      { symbol: item.symbol, name: item.name || item.symbol },
+      { merge: true }
+    );
+    return loadWatchlist(uid);
+  }
+  const maxOrder = ordered.reduce(
+    (m, x) => Math.max(m, Number.isFinite(Number(x.sortOrder)) ? Number(x.sortOrder) : -1),
+    -1
+  );
+  const payload = { ...item, sortOrder: maxOrder + 1 };
+  await api.setDoc(getUserDoc(api, db, uid, item.symbol), payload, { merge: true });
+  return loadWatchlist(uid);
+}
+
+export async function reorderWatchlist(orderedItems, uid = null) {
+  const rows = (orderedItems || []).map((x, i) => ({
+    symbol: x.symbol,
+    name: x.name || x.symbol,
+    sortOrder: i
+  }));
+  const fb = await ensureFirestore();
+  if (!fb || !uid) {
+    saveLocalWatchlist(rows, uid);
+    return getLocalWatchlist(uid);
+  }
+  const { db, api } = fb;
+  const batch = api.writeBatch(db);
+  for (const row of rows) {
+    batch.set(getUserDoc(api, db, uid, row.symbol), row, { merge: true });
+  }
+  await batch.commit();
   return loadWatchlist(uid);
 }
 
