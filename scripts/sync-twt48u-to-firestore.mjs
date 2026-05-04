@@ -160,7 +160,7 @@ async function notifyWatchersOfNewCorporateEvents(db, newEventMetas) {
 
   for (const [uid, allLines] of uidToLines) {
     const uniqueLines = [...new Set(allLines)];
-    const title = "狗狗財經 · 追蹤股除權息更新";
+    const title = "追蹤股除權息更新";
     const body = uniqueLines.slice(0, 8).join("；")
       + (uniqueLines.length > 8 ? ` …等${uniqueLines.length}筆` : "");
     const tokenSnap = await db.collection("users").doc(uid).collection("messagingTokens").get();

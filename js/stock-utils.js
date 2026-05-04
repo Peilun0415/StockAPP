@@ -2,13 +2,13 @@ export function getSignalByRatio(spreadRatio) {
   if (spreadRatio == null) {
     return { key: "white", icon: "⚪", text: "白燈（待定）" };
   }
-  if (spreadRatio < 5) {
+  if (Math.abs(spreadRatio) <= 3) {
     return { key: "white", icon: "⚪", text: "白燈（常態區間）" };
   }
-  if (spreadRatio < 10) {
+  if (Math.abs(spreadRatio) <= 5) {
     return { key: "green", icon: "🟢", text: "綠燈（初步獲利區）" };
   }
-  if (spreadRatio < 15) {
+  if (Math.abs(spreadRatio) <= 10) {
     return { key: "yellow", icon: "🟡", text: "黃燈（高價值區）" };
   }
   return { key: "red", icon: "🔴", text: "紅燈（超額利潤區）" };
