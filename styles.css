@@ -371,6 +371,7 @@ body {
   user-select: none;
   text-align: center;
   line-height: 1;
+  touch-action: none;
 }
 
 .watchlist-edit-main {

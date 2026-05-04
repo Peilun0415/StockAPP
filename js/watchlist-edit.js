@@ -21,6 +21,8 @@ let currentUid = null;
 let stockMaster = [];
 let masterLoadingPromise = null;
 let dragEl = null;
+let touchDragEl = null;
+let touchDragging = false;
 let skipFirstAuthReloadForUid = null;
 
 function setPageLoading(show) {
@@ -232,6 +234,60 @@ listEl?.addEventListener("dragend", async () => {
     window.alert("儲存排序失敗，請稍後再試。");
     await reloadList();
   }
+});
+
+function closestWatchlistItemByPoint(x, y) {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  const li = el.closest?.("li.watchlist-edit-item");
+  if (!li || !listEl?.contains(li)) return null;
+  return li;
+}
+
+listEl?.addEventListener("touchstart", (event) => {
+  const touch = event.touches?.[0];
+  if (!touch) return;
+  const handle = event.target.closest(".watchlist-drag-handle");
+  if (!handle) return;
+  const li = handle.closest("li.watchlist-edit-item");
+  if (!li || !listEl.contains(li)) return;
+  touchDragEl = li;
+  touchDragging = true;
+  touchDragEl.classList.add("is-dragging");
+});
+
+listEl?.addEventListener("touchmove", (event) => {
+  if (!touchDragging || !touchDragEl) return;
+  const touch = event.touches?.[0];
+  if (!touch) return;
+  event.preventDefault();
+  const targetLi = closestWatchlistItemByPoint(touch.clientX, touch.clientY);
+  if (!targetLi || targetLi === touchDragEl) return;
+  const rect = targetLi.getBoundingClientRect();
+  const after = touch.clientY > rect.top + rect.height / 2;
+  listEl.insertBefore(touchDragEl, after ? targetLi.nextSibling : targetLi);
+}, { passive: false });
+
+async function finishTouchDrag() {
+  if (!touchDragEl) return;
+  touchDragEl.classList.remove("is-dragging");
+  touchDragEl = null;
+  touchDragging = false;
+  try {
+    await persistOrderFromDom();
+  } catch (err) {
+    console.warn("儲存排序失敗", err);
+    window.alert("儲存排序失敗，請稍後再試。");
+    await reloadList();
+  }
+}
+
+listEl?.addEventListener("touchend", () => {
+  finishTouchDrag();
+});
+
+listEl?.addEventListener("touchcancel", () => {
+  finishTouchDrag();
 });
 
 keywordInput?.addEventListener("keydown", async (event) => {
