@@ -428,6 +428,29 @@ body {
   font-size: 14px;
 }
 
+.drag-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translate(-50%, 10px);
+  z-index: 120;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(17, 19, 24, 0.9);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.drag-hint.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .push-notify-row {
   margin: 12px 0 0;
   padding: 12px 14px;

@@ -15,6 +15,7 @@ const searchSuggestRoot = document.querySelector("#searchSuggest");
 const authBtn = document.querySelector("#authBtn");
 const authAvatarEl = document.querySelector("#authAvatar");
 const pageLoadingEl = document.querySelector("#pageLoading");
+const dragHintEl = document.querySelector("#dragHint");
 
 let items = [];
 let currentUid = null;
@@ -23,11 +24,32 @@ let masterLoadingPromise = null;
 let dragEl = null;
 let touchDragEl = null;
 let touchDragging = false;
+let touchPendingEl = null;
+let touchStartPoint = null;
+let touchStartTimer = null;
+let suppressNextClick = false;
 let skipFirstAuthReloadForUid = null;
+const TOUCH_HOLD_MS = 180;
+const TOUCH_MOVE_CANCEL_PX = 10;
 
 function setPageLoading(show) {
   if (!pageLoadingEl) return;
   pageLoadingEl.classList.toggle("is-hidden", !show);
+}
+
+function setDragHint(show) {
+  if (!dragHintEl) return;
+  if (show) {
+    dragHintEl.hidden = false;
+    dragHintEl.classList.add("is-visible");
+    return;
+  }
+  dragHintEl.classList.remove("is-visible");
+  window.setTimeout(() => {
+    if (!dragHintEl.classList.contains("is-visible")) {
+      dragHintEl.hidden = true;
+    }
+  }, 160);
 }
 
 function escapeHtml(s) {
@@ -190,6 +212,12 @@ async function addFromQuery(qRaw) {
 }
 
 listEl?.addEventListener("click", async (event) => {
+  if (suppressNextClick) {
+    suppressNextClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   const del = event.target.closest("[data-remove]");
   if (del) {
     event.preventDefault();
@@ -209,6 +237,7 @@ listEl?.addEventListener("dragstart", (event) => {
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", li.dataset.symbol || "");
   li.classList.add("is-dragging");
+  setDragHint(true);
 });
 
 listEl?.addEventListener("dragover", (event) => {
@@ -226,6 +255,7 @@ listEl?.addEventListener("dragend", async () => {
   if (dragEl) {
     dragEl.classList.remove("is-dragging");
   }
+  setDragHint(false);
   dragEl = null;
   try {
     await persistOrderFromDom();
@@ -244,35 +274,76 @@ function closestWatchlistItemByPoint(x, y) {
   return li;
 }
 
+function clearTouchPending() {
+  if (touchStartTimer) {
+    clearTimeout(touchStartTimer);
+    touchStartTimer = null;
+  }
+  touchPendingEl = null;
+  touchStartPoint = null;
+}
+
 listEl?.addEventListener("touchstart", (event) => {
   const touch = event.touches?.[0];
   if (!touch) return;
-  const handle = event.target.closest(".watchlist-drag-handle");
-  if (!handle) return;
-  const li = handle.closest("li.watchlist-edit-item");
+  if (event.target.closest("[data-remove]")) return;
+  const li = event.target.closest("li.watchlist-edit-item");
   if (!li || !listEl.contains(li)) return;
-  touchDragEl = li;
-  touchDragging = true;
-  touchDragEl.classList.add("is-dragging");
+  touchPendingEl = li;
+  touchStartPoint = { x: touch.clientX, y: touch.clientY };
+  touchStartTimer = window.setTimeout(() => {
+    touchDragEl = touchPendingEl;
+    touchDragging = Boolean(touchDragEl);
+    if (touchDragEl) {
+      touchDragEl.classList.add("is-dragging");
+      setDragHint(true);
+    }
+    clearTouchPending();
+  }, TOUCH_HOLD_MS);
 });
 
 listEl?.addEventListener("touchmove", (event) => {
-  if (!touchDragging || !touchDragEl) return;
   const touch = event.touches?.[0];
   if (!touch) return;
+  if (!touchDragging || !touchDragEl) {
+    if (!touchPendingEl || !touchStartPoint) return;
+    const dx = touch.clientX - touchStartPoint.x;
+    const dy = touch.clientY - touchStartPoint.y;
+    const moved = Math.hypot(dx, dy);
+    if (moved > TOUCH_MOVE_CANCEL_PX) {
+      clearTouchPending();
+    }
+    return;
+  }
   event.preventDefault();
   const targetLi = closestWatchlistItemByPoint(touch.clientX, touch.clientY);
   if (!targetLi || targetLi === touchDragEl) return;
   const rect = targetLi.getBoundingClientRect();
   const after = touch.clientY > rect.top + rect.height / 2;
   listEl.insertBefore(touchDragEl, after ? targetLi.nextSibling : targetLi);
+  const edge = 56;
+  if (touch.clientY < edge) {
+    window.scrollBy(0, -10);
+  } else if (touch.clientY > window.innerHeight - edge) {
+    window.scrollBy(0, 10);
+  }
 }, { passive: false });
 
 async function finishTouchDrag() {
-  if (!touchDragEl) return;
+  clearTouchPending();
+  if (!touchDragEl) {
+    touchDragging = false;
+    setDragHint(false);
+    return;
+  }
   touchDragEl.classList.remove("is-dragging");
+  setDragHint(false);
   touchDragEl = null;
   touchDragging = false;
+  suppressNextClick = true;
+  window.setTimeout(() => {
+    suppressNextClick = false;
+  }, 250);
   try {
     await persistOrderFromDom();
   } catch (err) {

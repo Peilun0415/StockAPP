@@ -24,7 +24,7 @@
       <a href="./index.html" class="back-link" aria-label="返回追蹤清單">◀ 返回</a>
       <div class="watchlist-edit-title-wrap">
         <h1 class="watchlist-edit-title">編輯追蹤清單</h1>
-        <p class="watchlist-edit-hint">拖曳左側握把排序；搜尋可新增股票</p>
+        <p class="watchlist-edit-hint">長按任一列可拖曳排序；搜尋可新增股票</p>
       </div>
       <div class="auth-wrap detail-auth-wrap">
         <button id="authBtn" class="login-btn auth-menu-btn" type="button" data-auth-menu="true" aria-haspopup="menu" aria-expanded="false" aria-label="帳號選單">
@@ -47,6 +47,7 @@
     <ul id="watchlistEditList" class="watchlist-edit-list" aria-label="追蹤股票清單"></ul>
     <p id="watchlistEditEmpty" class="watchlist-edit-empty" hidden>尚無追蹤股，請用上方搜尋加入。</p>
   </main>
+  <div id="dragHint" class="drag-hint" hidden>拖曳中，放開即可儲存排序</div>
 
   <script>
     window.__MIS_PROXY_ENDPOINT__ = "https://twse-mis-proxy.halloween1456.workers.dev/";
