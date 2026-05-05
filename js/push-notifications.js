@@ -83,12 +83,58 @@ export function bindPushNotificationControls({ getUid, button, statusEl }) {
     return () => {};
   }
 
+  let syncing = false;
+  const syncCurrentTokenIfGranted = async ({ interactive }) => {
+    if (syncing) return false;
+    const uid = typeof getUid === "function" ? getUid() : null;
+    if (!uid || Notification.permission !== "granted") return false;
+    syncing = true;
+    try {
+      const swUrl = new URL("./firebase-messaging-sw.js", window.location.href).href;
+      const scope = new URL("./", window.location.href).href;
+      const reg = await navigator.serviceWorker.register(swUrl, { scope });
+
+      const appMod = await import(`https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-app.js`);
+      const msgMod = await import(`https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-messaging.js`);
+      const app = getOrInitApp(appMod);
+      const messaging = msgMod.getMessaging(app);
+      const token = await msgMod.getToken(messaging, {
+        vapidKey: messagingVapidKey,
+        serviceWorkerRegistration: reg
+      });
+      if (!token) {
+        if (interactive) setStatus(statusEl, "無法取得推播權杖，請稍後再試。");
+        return false;
+      }
+      await saveMessagingTokenForUser(uid, token);
+      if (!foregroundMessageBound) {
+        foregroundMessageBound = true;
+        msgMod.onMessage(messaging, (payload) => {
+          const title = payload.notification?.title || payload.data?.title || "狗狗財經";
+          const body = payload.notification?.body || payload.data?.body || "";
+          if (title && window.Notification?.permission === "granted") {
+            new Notification(title, { body, icon: new URL("./icons/app-icon-192.png", window.location.href).href });
+          }
+        });
+      }
+      if (interactive) setStatus(statusEl, "已註冊此裝置推播。");
+      return true;
+    } catch (e) {
+      console.warn("推播註冊失敗", e);
+      if (interactive) setStatus(statusEl, `註冊失敗：${e?.message || e}`);
+      return false;
+    } finally {
+      syncing = false;
+    }
+  };
+
   const refresh = () => {
     const p = Notification.permission;
     if (row) row.hidden = p === "granted";
     if (p === "granted") {
       setStatus(statusEl, "已開啟通知");
       button.hidden = true;
+      void syncCurrentTokenIfGranted({ interactive: false });
     } else if (p === "denied") {
       setStatus(statusEl, "已被瀏覽器封鎖，請到網站設定允許通知。");
       button.hidden = true;
@@ -126,8 +172,7 @@ export function bindPushNotificationControls({ getUid, button, statusEl }) {
   }
 
   const onClick = async () => {
-    const uid = typeof getUid === "function" ? getUid() : null;
-    if (!uid) {
+    if (!(typeof getUid === "function" ? getUid() : null)) {
       setStatus(statusEl, "請先登入。");
       return;
     }
@@ -139,37 +184,7 @@ export function bindPushNotificationControls({ getUid, button, statusEl }) {
         refresh();
         return;
       }
-      const swUrl = new URL("./firebase-messaging-sw.js", window.location.href).href;
-      const scope = new URL("./", window.location.href).href;
-      const reg = await navigator.serviceWorker.register(swUrl, { scope });
-
-      const appMod = await import(`https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-app.js`);
-      const msgMod = await import(`https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-messaging.js`);
-      const app = getOrInitApp(appMod);
-      const messaging = msgMod.getMessaging(app);
-      const token = await msgMod.getToken(messaging, {
-        vapidKey: messagingVapidKey,
-        serviceWorkerRegistration: reg
-      });
-      if (!token) {
-        setStatus(statusEl, "無法取得推播權杖，請稍後再試。");
-        return;
-      }
-      await saveMessagingTokenForUser(uid, token);
-      setStatus(statusEl, "已註冊此裝置推播。");
-      if (!foregroundMessageBound) {
-        foregroundMessageBound = true;
-        msgMod.onMessage(messaging, (payload) => {
-          const title = payload.notification?.title || payload.data?.title || "狗狗財經";
-          const body = payload.notification?.body || payload.data?.body || "";
-          if (title && window.Notification?.permission === "granted") {
-            new Notification(title, { body, icon: new URL("./icons/app-icon-192.png", window.location.href).href });
-          }
-        });
-      }
-    } catch (e) {
-      console.warn("推播註冊失敗", e);
-      setStatus(statusEl, `註冊失敗：${e?.message || e}`);
+      await syncCurrentTokenIfGranted({ interactive: true });
     } finally {
       button.disabled = false;
       refresh();
