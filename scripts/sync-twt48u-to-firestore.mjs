@@ -8,6 +8,7 @@
  *   SKIP_FCM — 設為 "1" 時不發送 FCM（僅同步 Firestore）
  *   FCM_NEW_EVENT_BULK_THRESHOLD — 單次同步「新事件」超過此筆數時略過推播（預設 150，避免首次全量匯入狂發通知）
  *   FCM_ALLOW_BULK — 設為 "1" 時略過上述筆數保護
+ *   FCM_PER_SYMBOL_DELAY_MS — 每支股票通知之間的延遲毫秒（預設 1200）
  *
  * 用法：node scripts/sync-twt48u-to-firestore.mjs
  */
@@ -27,6 +28,11 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const YEARS_BACK = Number(process.env.TWT48U_YEARS_BACK || "5");
+const FCM_PER_SYMBOL_DELAY_MS = Number(process.env.FCM_PER_SYMBOL_DELAY_MS || "1200");
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function readHomepageFromPackageJson() {
   try {
@@ -146,54 +152,76 @@ async function notifyWatchersOfNewCorporateEvents(db, newEventMetas) {
     bySymbol.get(sym).push(line);
   }
 
-  const uidToLines = new Map();
+  const uidToSymbolLines = new Map();
   for (const [sym, lines] of bySymbol) {
     const qs = await db.collectionGroup("watchlist").where("symbol", "==", sym).get();
     for (const doc of qs.docs) {
       const uid = doc.ref.parent.parent.id;
-      if (!uidToLines.has(uid)) {
-        uidToLines.set(uid, []);
+      if (!uidToSymbolLines.has(uid)) {
+        uidToSymbolLines.set(uid, new Map());
       }
-      uidToLines.get(uid).push(...lines);
+      const symbolMap = uidToSymbolLines.get(uid);
+      if (!symbolMap.has(sym)) {
+        symbolMap.set(sym, []);
+      }
+      symbolMap.get(sym).push(...lines);
     }
   }
 
-  for (const [uid, allLines] of uidToLines) {
-    const uniqueLines = [...new Set(allLines)];
-    const title = "追蹤股除權息更新";
-    const body = uniqueLines.slice(0, 8).join("；")
-      + (uniqueLines.length > 8 ? ` …等${uniqueLines.length}筆` : "");
+  for (const [uid, symbolMap] of uidToSymbolLines) {
     const tokenSnap = await db.collection("users").doc(uid).collection("messagingTokens").get();
     const tokens = tokenSnap.docs.map((d) => d.data()?.token).filter((t) => typeof t === "string" && t.length > 0);
     if (!tokens.length) {
       continue;
     }
 
-    const data = {
-      title,
-      body: body.slice(0, 3500),
-      url: fullOpenUrl || "/index.html"
-    };
-    const stringData = Object.fromEntries(
-      Object.entries(data).map(([k, v]) => [k, String(v)])
-    );
+    for (const [sym, symbolLines] of symbolMap) {
+      const uniqueLines = [...new Set(symbolLines)];
+      const title = `追蹤股除權息更新：${sym}`;
+      const body = uniqueLines.slice(0, 8).join("；")
+        + (uniqueLines.length > 8 ? ` …等${uniqueLines.length}筆` : "");
 
-    for (let i = 0; i < tokens.length; i += 500) {
-      const batchTokens = tokens.slice(i, i + 500);
-      const res = await messaging.sendEachForMulticast({
-        tokens: batchTokens,
-        data: stringData
-      });
-      if (res.failureCount) {
-        const failed = res.responses
-          .map((r, idx) => ({ r, token: batchTokens[idx] }))
-          .filter((x) => !x.r.success);
-        console.warn(`FCM: ${res.failureCount} failure(s) uid=${uid}`, failed.slice(0, 3));
+      const data = {
+        title,
+        body: body.slice(0, 3500),
+        url: fullOpenUrl || "/index.html",
+        symbol: sym
+      };
+      const stringData = Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, String(v)])
+      );
+
+      for (let i = 0; i < tokens.length; i += 500) {
+        const batchTokens = tokens.slice(i, i + 500);
+        const res = await messaging.sendEachForMulticast({
+          tokens: batchTokens,
+          data: stringData,
+          webpush: {
+            notification: {
+              title,
+              body,
+              icon: "/icons/app-icon-192.png",
+              badge: "/icons/app-icon-192.png"
+            },
+            fcmOptions: {
+              link: fullOpenUrl || "/index.html"
+            }
+          }
+        });
+        if (res.failureCount) {
+          const failed = res.responses
+            .map((r, idx) => ({ r, token: batchTokens[idx] }))
+            .filter((x) => !x.r.success);
+          console.warn(`FCM: ${res.failureCount} failure(s) uid=${uid} symbol=${sym}`, failed.slice(0, 3));
+        }
+      }
+      if (FCM_PER_SYMBOL_DELAY_MS > 0) {
+        await sleep(FCM_PER_SYMBOL_DELAY_MS);
       }
     }
   }
 
-  console.log(`FCM: new symbols=${bySymbol.size}, users notified=${uidToLines.size}`);
+  console.log(`FCM: new symbols=${bySymbol.size}, users notified=${uidToSymbolLines.size}`);
 }
 
 function eventDocId(symbol, dateText, typeText) {

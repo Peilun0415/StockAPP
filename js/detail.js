@@ -476,7 +476,10 @@ function renderSummary(item) {
   topName.textContent = item.name;
 
   summaryRoot.innerHTML = `
-    <h2>當前價格: ${formatMoney(item.currentPrice)}</h2>
+    <div class="current-price-card" role="status" aria-label="當前價格">
+      <p class="current-price-label">當前價格</p>
+      <h2 class="current-price-value">${formatMoney(item.currentPrice)}</h2>
+    </div>
   `;
 }
 
