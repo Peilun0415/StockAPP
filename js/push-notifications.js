@@ -35,12 +35,24 @@ export async function saveMessagingTokenForUser(uid, token) {
   if (!fb) return;
   const { db, api } = fb;
   const id = await sha256Hex(token);
-  const ref = api.doc(db, "users", uid, "messagingTokens", id);
-  await api.setDoc(ref, {
+  const tokenCol = api.collection(db, "users", uid, "messagingTokens");
+  const ref = api.doc(tokenCol, id);
+
+  // 同一使用者僅保留最新 web token，避免無效舊 token 持續累積。
+  const q = api.query(tokenCol, api.where("platform", "==", "web"));
+  const snap = await api.getDocs(q);
+  const batch = api.writeBatch(db);
+  snap.forEach((docSnap) => {
+    if (docSnap.id !== id) {
+      batch.delete(docSnap.ref);
+    }
+  });
+  batch.set(ref, {
     token,
     updatedAt: api.serverTimestamp(),
     platform: "web"
   });
+  await batch.commit();
 }
 
 export function isPushUiAvailable() {
