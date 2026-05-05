@@ -34,6 +34,19 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function formatPayoutText(ev) {
+  const cash = Number(ev?.cashDividend);
+  const stock = Number(ev?.stockDividend);
+  const parts = [];
+  if (Number.isFinite(cash) && cash > 0) {
+    parts.push(`除息${cash}`);
+  }
+  if (Number.isFinite(stock) && stock > 0) {
+    parts.push(`除權${stock}`);
+  }
+  return parts.length ? parts.join("／") : "除息/除權金額待公告";
+}
+
 function readHomepageFromPackageJson() {
   try {
     const raw = readFileSync(join(__dirname, "../package.json"), "utf8");
@@ -145,7 +158,8 @@ async function notifyWatchersOfNewCorporateEvents(db, newEventMetas) {
   for (const meta of newEventMetas) {
     const { ev, typeLabel } = meta;
     const sym = ev.symbol;
-    const line = `${ev.name || sym}（${sym}）${ev.dateText || ""} ${typeLabel}`;
+    const payout = formatPayoutText(ev);
+    const line = `${ev.name || sym} ${ev.dateText || ""} ${typeLabel} ${payout}`;
     if (!bySymbol.has(sym)) {
       bySymbol.set(sym, []);
     }
@@ -177,7 +191,7 @@ async function notifyWatchersOfNewCorporateEvents(db, newEventMetas) {
 
     for (const [sym, symbolLines] of symbolMap) {
       const uniqueLines = [...new Set(symbolLines)];
-      const title = `追蹤股除權息更新：${sym}`;
+      const title = "追蹤股除權息更新";
       const body = uniqueLines.slice(0, 8).join("；")
         + (uniqueLines.length > 8 ? ` …等${uniqueLines.length}筆` : "");
 
