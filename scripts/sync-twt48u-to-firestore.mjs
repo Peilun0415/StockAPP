@@ -159,7 +159,7 @@ async function notifyWatchersOfNewCorporateEvents(db, newEventMetas) {
     const { ev, typeLabel } = meta;
     const sym = ev.symbol;
     const payout = formatPayoutText(ev);
-    const line = `${ev.name || sym} ${ev.dateText || ""} ${typeLabel} ${payout}`;
+    const line = `${ev.name || sym} ${ev.dateText || ""} ${payout}`;
     if (!bySymbol.has(sym)) {
       bySymbol.set(sym, []);
     }
@@ -184,7 +184,11 @@ async function notifyWatchersOfNewCorporateEvents(db, newEventMetas) {
 
   for (const [uid, symbolMap] of uidToSymbolLines) {
     const tokenSnap = await db.collection("users").doc(uid).collection("messagingTokens").get();
-    const tokens = tokenSnap.docs.map((d) => d.data()?.token).filter((t) => typeof t === "string" && t.length > 0);
+    const tokens = [...new Set(
+      tokenSnap.docs
+        .map((d) => d.data()?.token)
+        .filter((t) => typeof t === "string" && t.length > 0)
+    )];
     if (!tokens.length) {
       continue;
     }
