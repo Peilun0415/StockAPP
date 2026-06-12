@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>篩選結果</title>
+  <meta name="theme-color" content="#4b8dff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="狗狗財經">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="icon" type="image/png" href="./icons/app-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/app-icon.png">
+  <link rel="stylesheet" href="./styles.css?v=20260615">
+</head>
+<body class="has-bottom-nav">
+  <div id="pageLoading" class="page-loading" role="status" aria-live="polite">
+    <div class="page-loading-card">
+      <img class="page-loading-cat" src="./icons/cat-loading.gif" alt="">
+      <p>資料載入中...</p>
+    </div>
+  </div>
+  <main class="page page-screener-result">
+    <section class="screener-result">
+      <div class="screener-summary-card">
+        <p id="queryCondition" class="screener-query-condition"></p>
+        <p id="dataSubtitle" class="screener-count"></p>
+        <p id="dataTitle" class="screener-data-month"></p>
+      </div>
+
+      <div class="search-box screener-search">
+        <input id="searchInput" type="search" placeholder="搜尋公司名稱或關鍵字" aria-label="搜尋公司名稱或關鍵字">
+      </div>
+
+      <div class="screener-toolbar">
+        <div class="pills screener-market-pills">
+          <button type="button" class="pill active" data-market="sii">上市</button>
+          <button type="button" class="pill" data-market="otc">上櫃</button>
+        </div>
+        <div class="screener-mark-filters">
+          <label><input type="checkbox" id="checkbox-check" checked>✔️</label>
+          <label><input type="checkbox" id="checkbox-star" checked>⭐</label>
+          <label><input type="checkbox" id="checkbox-cross" checked>❌</label>
+          <label><input type="checkbox" id="checkbox-none" checked>無標記</label>
+        </div>
+      </div>
+
+      <div class="screener-color-legend" aria-label="列底色規則">
+        <span class="screener-legend-title">列底色：</span>
+        <span class="screener-legend-item ninety-highlight">月＋年營收 ≥ 90%</span>
+        <span class="screener-legend-item sixty-highlight">≥ 60%</span>
+        <span class="screener-legend-item thirty-highlight">≥ 30%</span>
+        <button type="button" id="colorSortBtn" class="screener-color-sort-btn">依顏色排序</button>
+      </div>
+
+      <div class="screener-table-wrap">
+        <table id="resultTable-sii" class="screener-table tab-content active">
+          <thead><tr></tr></thead>
+          <tbody></tbody>
+        </table>
+        <table id="resultTable-otc" class="screener-table tab-content">
+          <thead><tr></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="screenerEmpty" class="screener-empty" hidden>沒有符合條件的股票</p>
+    </section>
+
+    <p id="screenerLoadError" class="screener-empty" hidden>篩選資料載入失敗，請稍後再試</p>
+  </main>
+
+  <nav class="bottom-nav" aria-label="主要功能切換">
+    <div class="bottom-nav-inner">
+      <a href="./index.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="16" rx="2"/>
+          <path d="M16 3v4M8 3v4M3 11h18"/>
+          <path d="M9 15.5h2.5M9 18h5"/>
+        </svg>
+        <span>除權息</span>
+      </a>
+      <a href="./screener.html" class="bottom-nav-item is-active" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 5h16l-6.5 8v5.5L10.5 21v-8L4 5z"/>
+        </svg>
+        <span>篩選</span>
+      </a>
+      <a href="./profile.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
+        </svg>
+        <span>我的</span>
+      </a>
+    </div>
+  </nav>
+
+  <script>
+    window.__MIS_PROXY_ENDPOINT__ = "https://twse-mis-proxy.halloween1456.workers.dev/";
+  </script>
+  <script type="module" src="./js/screener-result.js"></script>
+</body>
+</html>

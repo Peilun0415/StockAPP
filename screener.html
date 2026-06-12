@@ -10,7 +10,7 @@
   <link rel="manifest" href="./site.webmanifest">
   <link rel="icon" type="image/png" href="./icons/app-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/app-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=20260613">
+  <link rel="stylesheet" href="./styles.css?v=20260615">
 </head>
 <body class="has-bottom-nav">
   <div id="pageLoading" class="page-loading" role="status" aria-live="polite">
@@ -20,11 +20,7 @@
     </div>
   </div>
   <main class="page page-screener">
-    <header class="screener-head">
-    </header>
-
-    <!-- 條件設定 -->
-    <section id="searchPage" class="screener-form-card">
+    <section class="screener-form-card">
       <h2 class="screener-section-title">條件設定</h2>
       <p id="screenerDataDate" class="screener-data-date"></p>
       <form id="screenerForm" class="screener-form">
@@ -52,7 +48,7 @@
           </label>
         </div>
 
-        <div class="screener-field">
+        <div class="screener-field screener-field-sectors">
           <div class="screener-sector-head">
             <span>類股（可複選）</span>
             <button type="button" id="sectorAllBtn" class="screener-sector-all">全選</button>
@@ -62,54 +58,6 @@
 
         <button type="submit" class="screener-submit-btn">查詢</button>
       </form>
-    </section>
-
-    <!-- 查詢結果 -->
-    <section id="resultPage" class="screener-result" hidden>
-      <button type="button" id="backToFormBtn" class="screener-back-btn">◀ 重新設定條件</button>
-
-      <div class="screener-summary-card">
-        <p id="queryCondition" class="screener-query-condition"></p>
-        <p id="dataSubtitle" class="screener-count"></p>
-        <p id="dataTitle" class="screener-data-month"></p>
-      </div>
-
-      <div class="search-box screener-search">
-        <input id="searchInput" type="search" placeholder="搜尋公司名稱或關鍵字" aria-label="搜尋公司名稱或關鍵字">
-      </div>
-
-      <div class="screener-toolbar">
-        <div class="pills screener-market-pills">
-          <button type="button" class="pill active" data-market="sii">上市</button>
-          <button type="button" class="pill" data-market="otc">上櫃</button>
-        </div>
-        <div class="screener-mark-filters">
-          <label><input type="checkbox" id="checkbox-check" checked>✔️</label>
-          <label><input type="checkbox" id="checkbox-star" checked>⭐</label>
-          <label><input type="checkbox" id="checkbox-cross" checked>❌</label>
-          <label><input type="checkbox" id="checkbox-none" checked>無標記</label>
-        </div>
-      </div>
-
-      <div class="screener-color-legend" aria-label="列底色規則">
-        <span class="screener-legend-title">列底色：</span>
-        <span class="screener-legend-item ninety-highlight">月＋年營收 ≥ 90%</span>
-        <span class="screener-legend-item sixty-highlight">≥ 60%</span>
-        <span class="screener-legend-item thirty-highlight">≥ 30%</span>
-        <button type="button" id="colorSortBtn" class="screener-color-sort-btn">依顏色排序</button>
-      </div>
-
-      <div class="screener-table-wrap">
-        <table id="resultTable-sii" class="screener-table tab-content active">
-          <thead><tr></tr></thead>
-          <tbody></tbody>
-        </table>
-        <table id="resultTable-otc" class="screener-table tab-content">
-          <thead><tr></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <p id="screenerEmpty" class="screener-empty" hidden>沒有符合條件的股票</p>
     </section>
 
     <p id="screenerLoadError" class="screener-empty" hidden>篩選資料載入失敗，請稍後再試</p>
@@ -141,9 +89,6 @@
     </div>
   </nav>
 
-  <script>
-    window.__MIS_PROXY_ENDPOINT__ = "https://twse-mis-proxy.halloween1456.workers.dev/";
-  </script>
   <script type="module" src="./js/screener.js"></script>
 </body>
 </html>

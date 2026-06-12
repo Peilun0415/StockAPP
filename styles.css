@@ -1423,6 +1423,42 @@ body.has-bottom-nav .page {
 }
 
 /* 個股篩選頁 */
+body.has-bottom-nav .page.page-screener {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.page-screener .screener-form-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.has-bottom-nav .page.page-screener-result {
+  min-height: 100dvh;
+}
+
+.page-screener-result {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.page-screener-result .screener-result {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.page-screener-result .screener-table-wrap {
+  flex: 1;
+  min-height: 200px;
+  max-height: none;
+}
+
 .screener-head {
   margin-bottom: 16px;
 }
@@ -1580,6 +1616,30 @@ body.has-bottom-nav .page {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.screener-form-grid,
+.screener-submit-btn {
+  flex-shrink: 0;
+}
+
+.screener-field-sectors {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.screener-field-sectors .screener-sector-head {
+  flex-shrink: 0;
+}
+
+.screener-field-sectors .screener-sector-chips {
+  flex: 1;
+  min-height: 120px;
+  max-height: none;
 }
 
 .screener-form-grid {
@@ -1645,7 +1705,7 @@ body.has-bottom-nav .page {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 180px;
+  align-content: flex-start;
   overflow: auto;
   padding: 2px;
 }
@@ -1928,10 +1988,6 @@ body.has-bottom-nav .page {
 @media (max-width: 520px) {
   .screener-form-grid {
     grid-template-columns: 1fr;
-  }
-
-  .screener-sector-chips {
-    max-height: 140px;
   }
 
   .screener-color-legend {
