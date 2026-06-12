@@ -1352,6 +1352,96 @@ h2 {
   text-align: center;
 }
 
+/* 底部導覽列：只放在「除權息資訊」「個股篩選」兩個主頁面 */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  border-top: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav-inner {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px 6px;
+  min-height: 54px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease;
+}
+
+.bottom-nav-item svg {
+  width: 23px;
+  height: 23px;
+  display: block;
+}
+
+.bottom-nav-item.is-active {
+  color: #2b6cff;
+}
+
+.bottom-nav-item:not(.is-active):hover {
+  color: #3f4b5d;
+}
+
+/* 有底部導覽列的頁面，內容底部需預留空間避免被遮住 */
+body.has-bottom-nav .page {
+  padding-bottom: calc(78px + env(safe-area-inset-bottom));
+}
+
+/* 個股篩選頁 */
+.screener-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.screener-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.screener-placeholder {
+  margin-top: 48px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.screener-placeholder-icon {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.screener-placeholder p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
 @media (max-width: 520px) {
   .topbar {
     grid-template-columns: 1fr;

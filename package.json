@@ -4,7 +4,8 @@
   "homepage": "https://peilun0415.github.io/StockAPP",
   "type": "module",
   "scripts": {
-    "sync:corporate": "node scripts/sync-twt48u-to-firestore.mjs"
+    "sync:corporate": "node scripts/sync-twt48u-to-firestore.mjs",
+    "fcm:test": "node scripts/test-fcm-direct.mjs"
   },
   "devDependencies": {
     "firebase-admin": "^12.6.0"
