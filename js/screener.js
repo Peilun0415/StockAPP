@@ -40,6 +40,7 @@ let currentUid = null;
 let marks = {};
 let filteredResults = { sii: [], otc: [] };
 let activeMarket = "sii";
+let screenerDataPromise = null;
 const sortState = {
   sii: { index: null, asc: true, color: null },
   otc: { index: null, asc: true, color: null }
@@ -389,9 +390,19 @@ function switchMarket(market) {
 
 async function handleSubmit(event) {
   event.preventDefault();
-  if (!screenerData) return;
 
-  const formData = new FormData(screenerFormEl);
+  const submitBtn = screenerFormEl.querySelector(".screener-submit-btn");
+  if (submitBtn?.disabled) return;
+
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "資料載入中...";
+    }
+    await ensureScreenerData();
+    if (!screenerData) return;
+
+    const formData = new FormData(screenerFormEl);
   const conditions = {
     monthPercent: Number(formData.get("monthPercent")) || 0,
     yearPercent: Number(formData.get("yearPercent")) || 0,
@@ -414,6 +425,12 @@ async function handleSubmit(event) {
   if (filteredResults.sii.length) {
     refreshListedPrices(filteredResults.sii);
   }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "查詢";
+    }
+  }
 }
 
 function bindMarkFilterCheckbox(el, key) {
@@ -431,6 +448,55 @@ async function loadScreenerData() {
   const res = await fetch("./data/screener.json");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+function applyScreenerData(data) {
+  screenerData = data;
+  buildTableHeaders("sii");
+  buildTableHeaders("otc");
+  const updated = formatGeneratedAt(data.generatedAt);
+  screenerDataDateEl.textContent = updated
+    ? `資料更新：${updated}｜月營收 ${formatDataMonth(data.sii.dataMonth)}`
+    : "";
+}
+
+function startScreenerDataLoad() {
+  if (screenerData) return Promise.resolve(screenerData);
+  if (screenerDataPromise) return screenerDataPromise;
+
+  screenerDataDateEl.textContent = "篩選資料載入中...";
+  screenerDataPromise = loadScreenerData()
+    .then((data) => {
+      applyScreenerData(data);
+      return data;
+    })
+    .catch((error) => {
+      screenerDataPromise = null;
+      screenerDataDateEl.textContent = "篩選資料載入失敗";
+      screenerLoadErrorEl.hidden = false;
+      throw error;
+    });
+  return screenerDataPromise;
+}
+
+async function ensureScreenerData() {
+  if (screenerData) return screenerData;
+  return startScreenerDataLoad();
+}
+
+async function reloadMarks(uid) {
+  marks = await loadMarks(uid);
+  for (const market of ["sii", "otc"]) {
+    const table = document.getElementById(`resultTable-${market}`);
+    table.querySelectorAll("tbody tr").forEach((tr) => {
+      const code = tr.dataset.code;
+      const mark = marks[code] ?? "";
+      const cell = tr.querySelector(".status-cell");
+      if (cell) cell.textContent = mark;
+      applyMarkFilterToRow(tr);
+    });
+  }
+  updateEmptyState();
 }
 
 function bindEvents() {
@@ -469,9 +535,9 @@ async function boot() {
     buildSectorChips();
     bindEvents();
 
+    // 登入驗證完成即可顯示表單；資料與標記改背景載入
     const user = await requireAuth();
     currentUid = user?.uid ?? null;
-    marks = await loadMarks(currentUid);
 
     initGoogleAuthUI({
       authBtn,
@@ -485,23 +551,22 @@ async function boot() {
           return;
         }
         currentUid = u?.uid ?? null;
-        marks = await loadMarks(currentUid);
+        await reloadMarks(currentUid);
       }
     });
 
-    screenerData = await loadScreenerData();
-    buildTableHeaders("sii");
-    buildTableHeaders("otc");
+    setPageLoading(false);
 
-    const updated = formatGeneratedAt(screenerData.generatedAt);
-    screenerDataDateEl.textContent = updated
-      ? `資料更新：${updated}｜月營收 ${formatDataMonth(screenerData.sii.dataMonth)}`
-      : "";
+    startScreenerDataLoad().catch((error) => {
+      console.error("篩選資料載入失敗", error);
+    });
+    reloadMarks(currentUid).catch((error) => {
+      console.warn("標記載入失敗", error);
+    });
   } catch (error) {
     console.error("個股篩選初始化失敗", error);
     screenerLoadErrorEl.hidden = false;
     searchPageEl.hidden = true;
-  } finally {
     setPageLoading(false);
   }
 }
