@@ -4,6 +4,7 @@ import { loadMarks, saveMark } from "./screener-marks-store.js";
 import { fetchRealtimePrices } from "./market-api.js";
 import {
   MARK_CYCLE,
+  SECTORS,
   formatDataMonth,
   debounce,
   filterRows,
@@ -18,8 +19,12 @@ import {
 
 const pageLoadingEl = document.querySelector("#pageLoading");
 const queryConditionEl = document.querySelector("#queryCondition");
-const dataSubtitleEl = document.querySelector("#dataSubtitle");
+const siiCountEl = document.querySelector("#siiCount");
+const otcCountEl = document.querySelector("#otcCount");
 const dataTitleEl = document.querySelector("#dataTitle");
+const sectorsExpandEl = document.querySelector("#sectorsExpand");
+const sectorsSummaryEl = sectorsExpandEl?.querySelector(".screener-sectors-summary");
+const sectorsTagsEl = sectorsExpandEl?.querySelector(".screener-sectors-tags");
 const searchInputEl = document.querySelector("#searchInput");
 const screenerEmptyEl = document.querySelector("#screenerEmpty");
 const screenerLoadErrorEl = document.querySelector("#screenerLoadError");
@@ -268,14 +273,48 @@ async function refreshListedPrices(rows) {
   }
 }
 
+const MAX_INLINE_SECTOR_CHIPS = 3;
+
+function sectorChip(name) {
+  return `<span class="screener-chip screener-chip-sector">${name}</span>`;
+}
+
+function filterChip(label, value) {
+  return `<span class="screener-chip screener-chip-filter">${label} ≥ ${value}%</span>`;
+}
+
 function showQuerySummary(siiCount, otcCount) {
   const { monthPercent, yearPercent, epsPercent, selectedSectors } = conditions;
-  queryConditionEl.innerHTML = `
-    月營收 ≥ ${monthPercent}%　｜　年營收 ≥ ${yearPercent}%　｜　EPS 成長 ≥ ${epsPercent}%<br>
-    類股：${selectedSectors.length ? selectedSectors.join("、") : "全部"}
-  `.trim();
-  dataSubtitleEl.textContent = `符合條件：上市 ${siiCount} 筆、上櫃 ${otcCount} 筆`;
-  dataTitleEl.textContent = `資料年月：${formatDataMonth(screenerData.sii.dataMonth)}（上櫃 ${formatDataMonth(screenerData.otc.dataMonth)}）`;
+  const isAllSectors = selectedSectors.length >= SECTORS.length;
+
+  siiCountEl.textContent = String(siiCount);
+  otcCountEl.textContent = String(otcCount);
+  dataTitleEl.textContent = `${formatDataMonth(screenerData.sii.dataMonth)} · 上櫃 ${formatDataMonth(screenerData.otc.dataMonth)}`;
+
+  const chips = [
+    filterChip("月營收", monthPercent),
+    filterChip("年營收", yearPercent),
+    filterChip("EPS", epsPercent)
+  ];
+
+  if (isAllSectors) {
+    chips.push('<span class="screener-chip screener-chip-muted">全部類股</span>');
+    sectorsExpandEl.hidden = true;
+    sectorsExpandEl.open = false;
+  } else if (selectedSectors.length <= MAX_INLINE_SECTOR_CHIPS) {
+    chips.push(...selectedSectors.map(sectorChip));
+    sectorsExpandEl.hidden = true;
+    sectorsExpandEl.open = false;
+  } else {
+    chips.push(...selectedSectors.slice(0, 2).map(sectorChip));
+    chips.push(`<span class="screener-chip screener-chip-more">+${selectedSectors.length - 2}</span>`);
+    sectorsExpandEl.hidden = false;
+    sectorsExpandEl.open = false;
+    sectorsSummaryEl.textContent = `查看全部類股（${selectedSectors.length} 個）`;
+    sectorsTagsEl.innerHTML = selectedSectors.map(sectorChip).join("");
+  }
+
+  queryConditionEl.innerHTML = chips.join("");
 }
 
 function switchMarket(market) {

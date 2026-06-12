@@ -10,7 +10,7 @@
   <link rel="manifest" href="./site.webmanifest">
   <link rel="icon" type="image/png" href="./icons/app-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/app-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=20260615">
+  <link rel="stylesheet" href="./styles.css?v=20260616">
 </head>
 <body class="has-bottom-nav">
   <div id="pageLoading" class="page-loading" role="status" aria-live="polite">
@@ -22,9 +22,24 @@
   <main class="page page-screener-result">
     <section class="screener-result">
       <div class="screener-summary-card">
-        <p id="queryCondition" class="screener-query-condition"></p>
-        <p id="dataSubtitle" class="screener-count"></p>
-        <p id="dataTitle" class="screener-data-month"></p>
+        <div class="screener-summary-head">
+          <div class="screener-summary-counts">
+            <span class="screener-count-pill">
+              <span class="screener-count-label">上市</span>
+              <strong id="siiCount">—</strong>
+            </span>
+            <span class="screener-count-pill">
+              <span class="screener-count-label">上櫃</span>
+              <strong id="otcCount">—</strong>
+            </span>
+          </div>
+          <p id="dataTitle" class="screener-data-month"></p>
+        </div>
+        <div id="queryCondition" class="screener-condition-chips"></div>
+        <details class="screener-sectors-expand" id="sectorsExpand" hidden>
+          <summary class="screener-sectors-summary"></summary>
+          <div class="screener-sectors-tags"></div>
+        </details>
       </div>
 
       <div class="search-box screener-search">
