@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "sync:corporate": "node scripts/sync-twt48u-to-firestore.mjs",
+    "build:screener": "node scripts/build-screener-data.mjs",
     "fcm:test": "node scripts/test-fcm-direct.mjs"
   },
   "devDependencies": {
