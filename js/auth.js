@@ -28,6 +28,15 @@ function shouldFallbackToRedirect(error) {
     || code === "auth/operation-not-supported-in-this-environment";
 }
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+    })
+  ]);
+}
+
 async function ensureAuth() {
   if (!firebaseConfig) {
     return null;
@@ -37,8 +46,16 @@ async function ensureAuth() {
   }
 
   try {
-    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js");
-    const mod = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js");
+    const { initializeApp } = await withTimeout(
+      import("https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js"),
+      12000,
+      "firebase-app"
+    );
+    const mod = await withTimeout(
+      import("https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js"),
+      12000,
+      "firebase-auth"
+    );
     authMod = mod;
     const app = initializeApp(firebaseConfig);
     authInstance = mod.getAuth(app);
@@ -89,7 +106,7 @@ export async function getCurrentUid() {
   return user ? user.uid : null;
 }
 
-export async function waitForAuthUser() {
+export async function waitForAuthUser(timeoutMs = 8000) {
   const auth = await ensureAuth();
   if (!auth || !authMod) {
     // 區分：不是「未登入」，而是「Auth 初始化失敗」
@@ -98,14 +115,24 @@ export async function waitForAuthUser() {
 
   // 等待第一次 onAuthStateChanged，拿到目前登入使用者（或 null）
   return new Promise((resolve) => {
-    const unsub = authMod.onAuthStateChanged(auth, (user) => {
+    let settled = false;
+    const finish = (user) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       try {
         unsub?.();
       } catch {
         // ignore
       }
       resolve(user || null);
-    });
+    };
+
+    const unsub = authMod.onAuthStateChanged(auth, (user) => finish(user));
+    const timer = setTimeout(() => {
+      console.warn("Auth 狀態等待逾時，改用 currentUser");
+      finish(auth.currentUser || null);
+    }, timeoutMs);
   });
 }
 

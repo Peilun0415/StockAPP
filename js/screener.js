@@ -109,32 +109,40 @@ function startScreenerDataLoad() {
   return screenerDataPromise;
 }
 
-async function boot() {
+async function initScreenerAuth() {
   try {
-    setPageLoading(true);
+    const user = await requireAuth();
+    if (!user && isAuthAvailable()) return;
+  } catch (error) {
+    console.warn("個股篩選登入檢查失敗", error);
+  }
+
+  subscribeAuthUser((u) => {
+    if (!u && isAuthAvailable()) {
+      const returnTo = window.location.pathname + window.location.search;
+      window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+    }
+  });
+}
+
+async function boot() {
+  setPageLoading(true);
+  try {
     buildSectorChips();
     restoreForm(loadSavedConditions());
     bindEvents();
-
-    await requireAuth();
-
-    subscribeAuthUser((u) => {
-      if (!u && isAuthAvailable()) {
-        const returnTo = window.location.pathname + window.location.search;
-        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
-      }
-    });
-
-    setPageLoading(false);
-
-    startScreenerDataLoad().catch((error) => {
-      console.error("篩選資料載入失敗", error);
-    });
   } catch (error) {
     console.error("個股篩選初始化失敗", error);
     screenerLoadErrorEl.hidden = false;
+  } finally {
     setPageLoading(false);
   }
+
+  startScreenerDataLoad().catch((error) => {
+    console.error("篩選資料載入失敗", error);
+  });
+
+  void initScreenerAuth();
 }
 
 boot();

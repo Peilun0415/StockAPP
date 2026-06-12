@@ -392,13 +392,15 @@ async function boot() {
     return;
   }
 
+  setPageLoading(true);
   try {
-    setPageLoading(true);
     saveConditions(conditions);
     bindEvents();
 
-    const user = await requireAuth();
-    currentUid = user?.uid ?? null;
+    const authPromise = requireAuth().catch((error) => {
+      console.warn("篩選結果登入檢查失敗", error);
+      return null;
+    });
 
     subscribeAuthUser(async (u) => {
       if (!u && isAuthAvailable()) {
@@ -413,16 +415,20 @@ async function boot() {
     screenerData = await loadScreenerData();
     buildTableHeaders("sii");
     buildTableHeaders("otc");
+
+    const user = await authPromise;
+    currentUid = user?.uid ?? null;
+    if (!user && isAuthAvailable()) return;
+
     runQuery();
 
     reloadMarks(currentUid).catch((error) => {
       console.warn("標記載入失敗", error);
     });
-
-    setPageLoading(false);
   } catch (error) {
     console.error("篩選結果初始化失敗", error);
     screenerLoadErrorEl.hidden = false;
+  } finally {
     setPageLoading(false);
   }
 }
