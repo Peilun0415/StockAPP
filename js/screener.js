@@ -1,4 +1,4 @@
-import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
+import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadMarks, saveMark } from "./screener-marks-store.js";
 import { fetchRealtimePrices } from "./market-api.js";
@@ -13,8 +13,6 @@ const SECTORS = [
 
 const MARK_CYCLE = ["✔️", "⭐", "❌", ""];
 
-const authBtn = document.querySelector("#authBtn");
-const authAvatarEl = document.querySelector("#authAvatar");
 const pageLoadingEl = document.querySelector("#pageLoading");
 const searchPageEl = document.querySelector("#searchPage");
 const resultPageEl = document.querySelector("#resultPage");
@@ -542,20 +540,14 @@ async function boot() {
     const user = await requireAuth();
     currentUid = user?.uid ?? null;
 
-    initGoogleAuthUI({
-      authBtn,
-      authUserEl: null,
-      avatarEl: authAvatarEl,
-      appBarOnlyLogout: true,
-      onUserChanged: async (u) => {
-        if (!u && isAuthAvailable()) {
-          const returnTo = window.location.pathname + window.location.search;
-          window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
-          return;
-        }
-        currentUid = u?.uid ?? null;
-        await reloadMarks(currentUid);
+    subscribeAuthUser(async (u) => {
+      if (!u && isAuthAvailable()) {
+        const returnTo = window.location.pathname + window.location.search;
+        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+        return;
       }
+      currentUid = u?.uid ?? null;
+      await reloadMarks(currentUid);
     });
 
     setPageLoading(false);

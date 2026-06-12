@@ -2,7 +2,7 @@ import { loadWatchlist, addWatchStock, removeWatchStock } from "./watchlist-stor
 import { fetchRealtimePrices } from "./market-api.js";
 import { fetchAnnualCorporateActions } from "./corporate-actions-api.js";
 import { loadMarketCorporateSummaries, loadLatestCompletedEvents } from "./market-corporate-store.js";
-import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
+import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
@@ -10,9 +10,6 @@ import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.j
 
 const listRoot = document.querySelector("#stockList");
 const keywordInput = document.querySelector("#keyword");
-const authBtn = document.querySelector("#authBtn");
-const authUserEl = document.querySelector("#authUser");
-const authAvatarEl = document.querySelector("#authAvatar");
 const searchSuggestRoot = document.querySelector("#searchSuggest");
 const pageLoadingEl = document.querySelector("#pageLoading");
 
@@ -590,36 +587,30 @@ async function boot() {
       setPageLoading(false);
     }
 
-    initGoogleAuthUI({
-      authBtn,
-      authUserEl,
-      avatarEl: authAvatarEl,
-      appBarOnlyLogout: true,
-      onUserChanged: async (u) => {
-        const nextUid = u?.uid ?? null;
-        if (nextUid && skipFirstAuthReloadForUid && nextUid === skipFirstAuthReloadForUid) {
-          skipFirstAuthReloadForUid = null;
-          currentUid = nextUid;
-          setPageLoading(false);
-          return;
-        }
+    subscribeAuthUser(async (u) => {
+      const nextUid = u?.uid ?? null;
+      if (nextUid && skipFirstAuthReloadForUid && nextUid === skipFirstAuthReloadForUid) {
         skipFirstAuthReloadForUid = null;
-        currentUid = u?.uid ?? null;
-        if (!u && isAuthAvailable()) {
-          const returnTo = window.location.pathname + window.location.search;
-          window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
-          return;
-        }
-        if (currentUid) {
-          setPageLoading(true);
-          try {
-            await reloadForCurrentUser();
-          } finally {
-            setPageLoading(false);
-          }
-        } else {
+        currentUid = nextUid;
+        setPageLoading(false);
+        return;
+      }
+      skipFirstAuthReloadForUid = null;
+      currentUid = u?.uid ?? null;
+      if (!u && isAuthAvailable()) {
+        const returnTo = window.location.pathname + window.location.search;
+        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
+        return;
+      }
+      if (currentUid) {
+        setPageLoading(true);
+        try {
+          await reloadForCurrentUser();
+        } finally {
           setPageLoading(false);
         }
+      } else {
+        setPageLoading(false);
       }
     });
 

@@ -134,6 +134,33 @@ function renderAuthUserText(user) {
   return `已登入：${email}`;
 }
 
+async function handleRedirectResultOnce() {
+  if (redirectResultHandled) return;
+  redirectResultHandled = true;
+  const auth = await ensureAuth();
+  if (!auth || !authMod) return;
+  try {
+    await authMod.getRedirectResult(auth);
+  } catch (error) {
+    if (error?.code !== "auth/missing-initial-state") {
+      console.warn("讀取 redirect 登入結果失敗", error);
+    } else if (isIosBrowser()) {
+      console.warn("iOS 瀏覽器缺少 redirect initial state，請重新嘗試登入");
+    }
+  }
+}
+
+/** 訂閱登入狀態（不含頂欄 UI），回傳取消訂閱函式 */
+export async function subscribeAuthUser(callback) {
+  await handleRedirectResultOnce();
+  const auth = await ensureAuth();
+  if (!auth || !authMod) {
+    callback(null);
+    return () => {};
+  }
+  return authMod.onAuthStateChanged(auth, (user) => callback(user || null));
+}
+
 export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserChanged, appBarOnlyLogout = false }) {
   const auth = await ensureAuth();
   if (!auth || !authMod) {
@@ -152,19 +179,7 @@ export async function initGoogleAuthUI({ authBtn, authUserEl, avatarEl, onUserCh
     return null;
   }
 
-  if (!redirectResultHandled) {
-    redirectResultHandled = true;
-    try {
-      await authMod.getRedirectResult(auth);
-    } catch (error) {
-      // iOS 某些環境會缺失 initial state，忽略這筆結果讓使用者可重新登入。
-      if (error?.code !== "auth/missing-initial-state") {
-        console.warn("讀取 redirect 登入結果失敗", error);
-      } else if (isIosBrowser()) {
-        console.warn("iOS 瀏覽器缺少 redirect initial state，請重新嘗試登入");
-      }
-    }
-  }
+  await handleRedirectResultOnce();
 
   let first = true;
   let closeAuthMenu = () => {};

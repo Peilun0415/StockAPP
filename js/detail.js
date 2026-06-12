@@ -6,7 +6,7 @@ import {
   saveManualCorporateEvent,
   deleteManualCorporateEvent
 } from "./market-corporate-store.js";
-import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
+import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
@@ -24,9 +24,6 @@ const summaryRoot = document.querySelector("#stockSummary");
 const historyRoot = document.querySelector("#historyList");
 const historyTitle = document.querySelector("#historyTitle");
 const rangePills = document.querySelector("#rangePills");
-const authBtn = document.querySelector("#authBtn");
-const authUserEl = document.querySelector("#authUser");
-const authAvatarEl = document.querySelector("#authAvatar");
 const pageLoadingEl = document.querySelector("#pageLoading");
 
 let detailUid = null;
@@ -602,18 +599,11 @@ async function initialize() {
 async function boot() {
   try {
     setPageLoading(true);
-    initGoogleAuthUI({
-      authBtn,
-      authUserEl,
-      avatarEl: authAvatarEl,
-      appBarOnlyLogout: true,
-      onUserChanged: (u) => {
-        detailUid = u?.uid ?? null;
-        // 登出後直接回到登入頁，避免在未登入狀態停留
-        if (!u && isAuthAvailable()) {
-          const returnTo = window.location.pathname + window.location.search;
-          window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
-        }
+    subscribeAuthUser((u) => {
+      detailUid = u?.uid ?? null;
+      if (!u && isAuthAvailable()) {
+        const returnTo = window.location.pathname + window.location.search;
+        window.location.replace(`./login.html?redirect=${encodeURIComponent(returnTo)}`);
       }
     });
     initDateSegmentFields(document);

@@ -10,7 +10,7 @@
   <link rel="manifest" href="./site.webmanifest">
   <link rel="icon" type="image/png" href="./icons/app-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/app-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=20260612e">
+  <link rel="stylesheet" href="./styles.css?v=20260613">
 </head>
 <body class="has-bottom-nav">
   <div id="pageLoading" class="page-loading" role="status" aria-live="polite">
@@ -21,16 +21,6 @@
   </div>
   <main class="page page-screener">
     <header class="screener-head">
-      <h1 class="screener-title">個股篩選</h1>
-      <div class="auth-wrap">
-        <button id="authBtn" class="login-btn auth-menu-btn" type="button" data-auth-menu="true" aria-haspopup="menu" aria-expanded="false" aria-label="帳號選單">
-          <img id="authAvatar" class="auth-avatar" alt="使用者頭像" src="" />
-          <span class="auth-menu-caret" aria-hidden="true">▾</span>
-        </button>
-        <div class="auth-menu" role="menu" hidden>
-          <button type="button" class="auth-menu-item" data-auth-action="logout" role="menuitem">登出</button>
-        </div>
-      </div>
     </header>
 
     <!-- 條件設定 -->
@@ -133,13 +123,20 @@
           <path d="M16 3v4M8 3v4M3 11h18"/>
           <path d="M9 15.5h2.5M9 18h5"/>
         </svg>
-        <span>除權息資訊</span>
+        <span>除權息</span>
       </a>
       <a href="./screener.html" class="bottom-nav-item is-active" aria-current="page">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 5h16l-6.5 8v5.5L10.5 21v-8L4 5z"/>
         </svg>
-        <span>個股篩選</span>
+        <span>篩選</span>
+      </a>
+      <a href="./profile.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
+        </svg>
+        <span>我的</span>
       </a>
     </div>
   </nav>

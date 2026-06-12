@@ -4,7 +4,7 @@ import {
   removeWatchStock,
   reorderWatchlist
 } from "./watchlist-store.js";
-import { initGoogleAuthUI, isAuthAvailable } from "./auth.js";
+import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
 
@@ -12,8 +12,6 @@ const listEl = document.querySelector("#watchlistEditList");
 const emptyEl = document.querySelector("#watchlistEditEmpty");
 const keywordInput = document.querySelector("#keyword");
 const searchSuggestRoot = document.querySelector("#searchSuggest");
-const authBtn = document.querySelector("#authBtn");
-const authAvatarEl = document.querySelector("#authAvatar");
 const pageLoadingEl = document.querySelector("#pageLoading");
 const dragHintEl = document.querySelector("#dragHint");
 
@@ -451,36 +449,30 @@ async function boot() {
       setPageLoading(false);
     }
 
-    initGoogleAuthUI({
-      authBtn,
-      authUserEl: null,
-      avatarEl: authAvatarEl,
-      appBarOnlyLogout: true,
-      onUserChanged: async (u) => {
-        const nextUid = u?.uid ?? null;
-        if (nextUid && skipFirstAuthReloadForUid && nextUid === skipFirstAuthReloadForUid) {
-          skipFirstAuthReloadForUid = null;
-          currentUid = nextUid;
-          setPageLoading(false);
-          return;
-        }
+    subscribeAuthUser(async (u) => {
+      const nextUid = u?.uid ?? null;
+      if (nextUid && skipFirstAuthReloadForUid && nextUid === skipFirstAuthReloadForUid) {
         skipFirstAuthReloadForUid = null;
         currentUid = nextUid;
-        if (!u && isAuthAvailable()) {
-          const rt = window.location.pathname + window.location.search;
-          window.location.replace(`./login.html?redirect=${encodeURIComponent(rt)}`);
-          return;
-        }
-        if (currentUid || !isAuthAvailable()) {
-          setPageLoading(true);
-          try {
-            await reloadList();
-          } finally {
-            setPageLoading(false);
-          }
-        } else {
+        setPageLoading(false);
+        return;
+      }
+      skipFirstAuthReloadForUid = null;
+      currentUid = nextUid;
+      if (!u && isAuthAvailable()) {
+        const rt = window.location.pathname + window.location.search;
+        window.location.replace(`./login.html?redirect=${encodeURIComponent(rt)}`);
+        return;
+      }
+      if (currentUid || !isAuthAvailable()) {
+        setPageLoading(true);
+        try {
+          await reloadList();
+        } finally {
           setPageLoading(false);
         }
+      } else {
+        setPageLoading(false);
       }
     });
   } finally {
