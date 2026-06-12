@@ -47,22 +47,33 @@ body {
 }
 
 .page-loading-card {
-  min-width: 170px;
+  min-width: 140px;
   border: 1px solid #dce4f0;
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 16px 20px 14px;
   background: #fff;
   box-shadow: var(--shadow);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.page-loading-cat {
+  width: 112px;
+  max-width: 40vw;
+  height: auto;
+  display: block;
 }
 
 .page-loading-card p {
   margin: 0;
   color: #3f4b5d;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .spinner {

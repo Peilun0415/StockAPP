@@ -395,9 +395,11 @@ async function handleSubmit(event) {
   if (submitBtn?.disabled) return;
 
   try {
+    const needDataWait = !screenerData;
+    if (needDataWait) setPageLoading(true);
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = "資料載入中...";
+      submitBtn.textContent = needDataWait ? "資料載入中..." : "查詢中...";
     }
     await ensureScreenerData();
     if (!screenerData) return;
@@ -426,6 +428,7 @@ async function handleSubmit(event) {
     refreshListedPrices(filteredResults.sii);
   }
   } finally {
+    setPageLoading(false);
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = "查詢";
