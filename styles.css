@@ -1422,29 +1422,16 @@ body.has-bottom-nav .page {
   padding-bottom: calc(78px + env(safe-area-inset-bottom));
 }
 
-/* 個股篩選頁 */
-body.has-bottom-nav .page.page-screener {
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
-}
-
-.page-screener .screener-form-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-body.has-bottom-nav .page.page-screener-result {
-  min-height: 100dvh;
-}
-
+/* 個股篩選：鎖定視窗高度，避免手機整頁被撐出畫面 */
+body.page-screener-body,
 body.page-screener-result-body {
   height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
+body.page-screener-body .page.page-screener,
 body.page-screener-result-body .page.page-screener-result {
   display: flex;
   flex-direction: column;
@@ -1455,10 +1442,29 @@ body.page-screener-result-body .page.page-screener-result {
   box-sizing: border-box;
 }
 
-body.page-screener-result-body .page.page-screener-result .screener-result {
-  flex: 1;
+/* 條件設定頁 */
+body.page-screener-body.has-bottom-nav .page.page-screener {
+  min-height: 0;
+}
+
+body.page-screener-body .screener-form-card {
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+body.page-screener-body .screener-field-sectors .screener-sector-chips {
+  min-height: 0;
+}
+
+/* 結果頁 */
+body.page-screener-result-body .page.page-screener-result .screener-result {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
@@ -1466,18 +1472,19 @@ body.page-screener-result-body .page.page-screener-result .screener-result {
 body.page-screener-result-body .screener-summary-card,
 body.page-screener-result-body .screener-search,
 body.page-screener-result-body .screener-toolbar,
-body.page-screener-result-body .screener-color-legend,
-body.page-screener-result-body .screener-empty {
-  flex-shrink: 0;
+body.page-screener-result-body .screener-color-legend {
+  min-width: 0;
 }
 
 body.page-screener-result-body .screener-table-wrap {
-  flex: 1 1 0;
-  height: 0;
   min-height: 0;
-  max-height: none;
+  max-height: 100%;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+body.page-screener-result-body .screener-empty {
+  grid-row: 6;
 }
 
 .screener-head {
@@ -1619,6 +1626,9 @@ body.page-screener-result-body .screener-table-wrap {
   background: var(--card);
   box-shadow: var(--shadow);
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .screener-section-title {
@@ -1925,18 +1935,22 @@ body.page-screener-result-body .screener-table-wrap {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-bottom: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .screener-market-pills {
   margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .screener-mark-filters {
   display: flex;
   gap: 8px;
   font-size: 13px;
+  flex-shrink: 0;
 }
 
 .screener-mark-filters label {
@@ -2143,14 +2157,6 @@ body.page-screener-result-body .screener-table-wrap {
   .screener-color-legend {
     gap: 4px;
     padding: 6px 8px;
-  }
-
-  .screener-table-wrap {
-    max-height: calc(100dvh - 340px - env(safe-area-inset-bottom));
-  }
-
-  body.page-screener-result-body .screener-table-wrap {
-    max-height: none;
   }
 }
 
