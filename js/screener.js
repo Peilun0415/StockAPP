@@ -9,6 +9,7 @@ import {
   loadSavedConditions,
   loadScreenerData
 } from "./screener-common.js";
+import { installGlobalErrorReporting, reportAppError } from "./app-error-store.js";
 
 const pageLoadingEl = document.querySelector("#pageLoading");
 const screenerFormEl = document.querySelector("#screenerForm");
@@ -104,6 +105,7 @@ function startScreenerDataLoad() {
       screenerDataPromise = null;
       screenerDataDateEl.textContent = "篩選資料載入失敗";
       screenerLoadErrorEl.hidden = false;
+      reportAppError("screener.loadScreenerData", error);
       throw error;
     });
   return screenerDataPromise;
@@ -127,12 +129,14 @@ async function initScreenerAuth() {
 
 async function boot() {
   setPageLoading(true);
+  installGlobalErrorReporting();
   try {
     buildSectorChips();
     restoreForm(loadSavedConditions());
     bindEvents();
   } catch (error) {
     console.error("個股篩選初始化失敗", error);
+    reportAppError("screener.boot", error);
     screenerLoadErrorEl.hidden = false;
   } finally {
     setPageLoading(false);
@@ -140,6 +144,7 @@ async function boot() {
 
   startScreenerDataLoad().catch((error) => {
     console.error("篩選資料載入失敗", error);
+    reportAppError("screener.startScreenerDataLoad", error);
   });
 
   void initScreenerAuth();

@@ -1509,7 +1509,20 @@ body.page-screener-result-body .screener-empty {
 
 /* 我的 */
 .page-profile {
-  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 78px - env(safe-area-inset-bottom));
+  padding-top: 0;
+}
+
+.page-profile .profile-card,
+.page-profile .profile-actions,
+.page-profile .profile-footnote,
+.page-profile .profile-error-panel {
+  width: 100%;
+  max-width: 360px;
 }
 
 .profile-page-title {
@@ -1610,6 +1623,59 @@ body.page-screener-result-body .screener-empty {
   margin: 24px 0 0;
   text-align: center;
   font-size: 12px;
+  color: var(--muted);
+}
+
+.profile-error-panel {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid #f0d4a8;
+  border-radius: 14px;
+  background: #fffaf3;
+  text-align: left;
+}
+
+.profile-error-panel h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #9a3412;
+}
+
+.profile-error-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  max-height: 42vh;
+  overflow: auto;
+}
+
+.profile-error-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #f3e4d4;
+}
+
+.profile-error-meta {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.profile-error-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+  color: #7c2d12;
+}
+
+.profile-error-empty {
+  margin: 0;
+  font-size: 13px;
   color: var(--muted);
 }
 

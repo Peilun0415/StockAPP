@@ -1,5 +1,10 @@
 import { isAuthAvailable, signOutGoogle, subscribeAuthUser } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
+import {
+  ADMIN_ERROR_VIEWER_UID,
+  installGlobalErrorReporting,
+  loadRecentAppErrors
+} from "./app-error-store.js";
 
 const pageLoadingEl = document.querySelector("#pageLoading");
 const profileAvatarEl = document.querySelector("#profileAvatar");
@@ -7,6 +12,11 @@ const profileAvatarFallbackEl = document.querySelector("#profileAvatarFallback")
 const profileNameEl = document.querySelector("#profileName");
 const profileEmailEl = document.querySelector("#profileEmail");
 const logoutBtnEl = document.querySelector("#logoutBtn");
+const adminErrorPanelEl = document.querySelector("#adminErrorPanel");
+const adminErrorListEl = document.querySelector("#adminErrorList");
+const adminErrorEmptyEl = document.querySelector("#adminErrorEmpty");
+
+let currentUid = null;
 
 function setPageLoading(show) {
   if (!pageLoadingEl) return;
@@ -34,6 +44,45 @@ function showAvatarPhoto(url, fallbackInitial) {
   profileAvatarEl.hidden = false;
 }
 
+function formatErrorTime(value) {
+  if (!value) return "—";
+  const date = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("zh-TW", { hour12: false });
+}
+
+function escapeHtml(text) {
+  return String(text ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+async function renderAdminErrors() {
+  if (!adminErrorPanelEl || currentUid !== ADMIN_ERROR_VIEWER_UID) {
+    if (adminErrorPanelEl) adminErrorPanelEl.hidden = true;
+    return;
+  }
+
+  adminErrorPanelEl.hidden = false;
+  const rows = await loadRecentAppErrors(40);
+  if (!rows.length) {
+    adminErrorListEl.innerHTML = "";
+    adminErrorEmptyEl.hidden = false;
+    return;
+  }
+
+  adminErrorEmptyEl.hidden = true;
+  adminErrorListEl.innerHTML = rows.map((row) => `
+    <li class="profile-error-item">
+      <p class="profile-error-meta">${escapeHtml(formatErrorTime(row.createdAt))} · ${escapeHtml(row.source || "unknown")}${row.uid ? ` · ${escapeHtml(row.uid)}` : ""}</p>
+      <p class="profile-error-message">${escapeHtml(row.message || "—")}</p>
+      ${row.detail ? `<p class="profile-error-message">${escapeHtml(row.detail)}</p>` : ""}
+    </li>
+  `).join("");
+}
+
 function renderProfile(user) {
   if (!user) {
     profileNameEl.textContent = "未登入";
@@ -58,8 +107,11 @@ function renderProfile(user) {
 async function boot() {
   try {
     setPageLoading(true);
+    installGlobalErrorReporting(() => currentUid);
     const user = await requireAuth("./profile.html");
+    currentUid = user?.uid ?? null;
     renderProfile(user);
+    await renderAdminErrors();
 
     logoutBtnEl.addEventListener("click", async () => {
       try {
@@ -73,8 +125,10 @@ async function boot() {
       }
     });
 
-    await subscribeAuthUser((u) => {
+    subscribeAuthUser(async (u) => {
+      currentUid = u?.uid ?? null;
       renderProfile(u);
+      await renderAdminErrors();
       if (!u && isAuthAvailable()) {
         window.location.replace("./login.html?redirect=" + encodeURIComponent("./profile.html"));
       }

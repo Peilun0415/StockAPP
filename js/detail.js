@@ -1,4 +1,4 @@
-import { fetchRealtimePrice } from "./market-api.js";
+import { fetchRealtimePrices } from "./market-api.js";
 import { fetchCorporateActionHistory, fetchDividendAnnouncementHistory } from "./corporate-actions-api.js";
 import {
   loadMarketCorporateHistory,
@@ -10,7 +10,7 @@ import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
-import { loadStockMasterList } from "./stock-master.js";
+import { loadStockMasterForSearch } from "./stock-master.js";
 import {
   initDateSegmentFields,
   resetDateFieldsInForm,
@@ -468,13 +468,22 @@ function bindEditHistoryForm() {
   });
 }
 
+function priceSourceLabel(source) {
+  if (source === "realtime") return "即時";
+  if (source === "prevClose") return "昨收";
+  if (source === "static") return "靜態參考";
+  if (source === "close") return "收盤";
+  return "";
+}
+
 function renderSummary(item) {
   topSymbol.textContent = item.symbol;
   topName.textContent = item.name;
+  const sourceText = priceSourceLabel(item.priceSource);
 
   summaryRoot.innerHTML = `
     <div class="current-price-card" role="status" aria-label="當前價格">
-      <p class="current-price-label">當前價格</p>
+      <p class="current-price-label">當前價格${sourceText ? `（${sourceText}）` : ""}</p>
       <h2 class="current-price-value">${formatMoney(item.currentPrice)}</h2>
     </div>
   `;
@@ -547,51 +556,71 @@ async function initialize() {
   const user = await requireAuth(returnTo);
   detailUid = user?.uid ?? null;
 
-  try {
-    const master = await loadStockMasterList();
-    const found = master.find((x) => x.symbol === stock.symbol);
-    if (found?.name) {
-      stock.name = found.name;
-    }
-  } catch (error) {
-    console.warn("載入股票主檔失敗，明細名稱改用代號", error);
-  }
-
-  try {
-    const sumMap = await loadMarketCorporateSummaries([stock.symbol]);
-    const m = sumMap.get(stock.symbol);
-    if (m) {
-      stock.name = m.name || stock.name;
-      stock.nextDividendDate = m.nextDividendDate ?? stock.nextDividendDate;
-      stock.nextRightsDate = m.nextRightsDate ?? stock.nextRightsDate;
-      stock.cashDividend = m.cashDividend ?? stock.cashDividend;
-      stock.stockDividend = m.stockDividend ?? stock.stockDividend;
-      if (m.referencePrice != null) {
-        stock.referencePrice = m.referencePrice;
+  const masterPromise = loadStockMasterForSearch();
+  const summaryPromise = loadMarketCorporateSummaries([stock.symbol]);
+  const pricePromise = fetchRealtimePrices([stock.symbol]).then((rows) => rows[0] ?? null);
+  const historyPromise = (async () => {
+    try {
+      let history = await loadMarketCorporateHistory(stock.symbol);
+      let manageable = history.length > 0;
+      if (!history.length) {
+        history = await fetchCorporateActionHistory(stock.symbol, 5);
+        manageable = false;
       }
+      if (!history.length) {
+        history = await fetchDividendAnnouncementHistory(stock.symbol);
+        manageable = false;
+      }
+      return { history, manageable };
+    } catch (error) {
+      console.warn("載入歷史除權息資料失敗，改用預設資料", error);
+      return { history: [], manageable: false };
     }
-  } catch (error) {
-    console.warn("讀取市場除權息摘要失敗", error);
+  })();
+
+  const [master, sumMap, realtime, historyResult] = await Promise.all([
+    masterPromise.catch((error) => {
+      console.warn("載入股票主檔失敗，明細名稱改用代號", error);
+      return [];
+    }),
+    summaryPromise.catch((error) => {
+      console.warn("讀取市場除權息摘要失敗", error);
+      return new Map();
+    }),
+    pricePromise.catch((error) => {
+      console.warn("取得股價失敗", error);
+      return null;
+    }),
+    historyPromise
+  ]);
+
+  const found = master.find((x) => x.symbol === stock.symbol);
+  if (found?.name) {
+    stock.name = found.name;
   }
 
-  const realtime = await fetchRealtimePrice(stock.symbol);
-  if (realtime != null) {
-    stock.currentPrice = realtime;
-  }
-  try {
-    stock.history = await loadMarketCorporateHistory(stock.symbol);
-    canManageHistory = stock.history.length > 0;
-    if (!stock.history.length) {
-      stock.history = await fetchCorporateActionHistory(stock.symbol, 10);
-      canManageHistory = false;
+  const m = sumMap.get(stock.symbol);
+  if (m) {
+    stock.name = m.name || stock.name;
+    stock.nextDividendDate = m.nextDividendDate ?? stock.nextDividendDate;
+    stock.nextRightsDate = m.nextRightsDate ?? stock.nextRightsDate;
+    stock.cashDividend = m.cashDividend ?? stock.cashDividend;
+    stock.stockDividend = m.stockDividend ?? stock.stockDividend;
+    if (m.referencePrice != null) {
+      stock.referencePrice = m.referencePrice;
     }
-    if (!stock.history.length) {
-      stock.history = await fetchDividendAnnouncementHistory(stock.symbol);
-      canManageHistory = false;
-    }
-  } catch (error) {
-    console.warn("載入歷史除權息資料失敗，改用預設資料", error);
   }
+
+  if (realtime?.price != null) {
+    stock.currentPrice = realtime.price;
+    stock.priceSource = realtime.source;
+  } else if (typeof found?.lastClose === "number") {
+    stock.currentPrice = found.lastClose;
+    stock.priceSource = "close";
+  }
+
+  stock.history = historyResult.history;
+  canManageHistory = historyResult.manageable;
   renderSummary(stock);
   renderHistory(stock);
 }

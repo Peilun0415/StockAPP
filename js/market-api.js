@@ -1,3 +1,9 @@
+import {
+  fetchStockDayAllRows,
+  normalizeStockDayAllRow,
+  toCloseNumber
+} from "./twse-stock-day-all.js";
+
 function normalizeSymbol(symbol) {
   return String(symbol || "").toUpperCase();
 }
@@ -18,7 +24,11 @@ function toNumber(text) {
 
 let cachedPriceMap = null;
 let cachedPriceMapAt = 0;
+let cachedScreenerPriceMap = null;
+let cachedScreenerPriceMapAt = 0;
 const CACHE_MS = 5 * 60 * 1000; // 5 minutes
+const SCREENER_PRICE_CACHE_MS = 30 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 15_000;
 const TWSE_DAY_ALL_ENDPOINTS = [
   "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json"
 ];
@@ -37,12 +47,54 @@ function readMisProxyEndpoint() {
 const MIS_PROXY_ENDPOINT = readMisProxyEndpoint();
 const ENABLE_MIS_REALTIME = Boolean(MIS_PROXY_ENDPOINT);
 
+function fetchWithTimeout(url, options = {}) {
+  const { timeoutMs = FETCH_TIMEOUT_MS, ...rest } = options;
+  return fetch(url, { ...rest, signal: AbortSignal.timeout(timeoutMs) });
+}
+
+async function loadScreenerPriceMap() {
+  if (cachedScreenerPriceMap && Date.now() - cachedScreenerPriceMapAt < SCREENER_PRICE_CACHE_MS) {
+    return cachedScreenerPriceMap;
+  }
+  try {
+    const res = await fetchWithTimeout("./data/screener.json");
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const payload = await res.json();
+    const map = new Map();
+    for (const market of ["sii", "otc"]) {
+      for (const row of payload?.[market]?.rows || []) {
+        const code = String(row?.code || "").trim();
+        if (!code) continue;
+        const symbol = `${code}.TW`;
+        const price = toNumber(row?.price);
+        if (typeof price === "number") {
+          map.set(symbol, price);
+        }
+      }
+    }
+    cachedScreenerPriceMap = map;
+    cachedScreenerPriceMapAt = Date.now();
+    return map;
+  } catch (error) {
+    console.warn("讀取 screener.json 靜態股價失敗", error);
+    return cachedScreenerPriceMap || new Map();
+  }
+}
+
+async function getStaticFallbackPrice(symbol) {
+  const map = await loadScreenerPriceMap();
+  const price = map.get(normalizeSymbol(symbol));
+  return typeof price === "number" ? price : null;
+}
+
 async function fetchMisRealtimePrices(symbols) {
   if (!ENABLE_MIS_REALTIME) return new Map();
   const list = (symbols || []).map(normalizeSymbol).filter(Boolean);
   if (!list.length) return new Map();
   const url = `${MIS_PROXY_ENDPOINT}?symbols=${encodeURIComponent(list.join(","))}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) {
     throw new Error(`MIS proxy fetch failed: HTTP ${res.status}`);
   }
@@ -68,12 +120,7 @@ async function fetchClosePrices(symbols) {
   let lastError = null;
   for (const endpoint of TWSE_DAY_ALL_ENDPOINTS) {
     try {
-      const res = await fetch(endpoint);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const payload = await res.json();
-      rows = Array.isArray(payload) ? payload : payload?.data;
+      rows = await fetchStockDayAllRows(endpoint, { timeoutMs: FETCH_TIMEOUT_MS });
       if (Array.isArray(rows)) break;
       throw new Error("payload is not array");
     } catch (error) {
@@ -85,15 +132,14 @@ async function fetchClosePrices(symbols) {
   }
   const out = new Map();
   for (const row of rows || []) {
-    const isArrayRow = Array.isArray(row);
-    const code = String(isArrayRow ? row[0] : row?.Code || row?.code || row?.Symbol || row?.symbol || "").trim();
+    const { code, closingPrice } = normalizeStockDayAllRow(row);
     if (!code) continue;
     const symbol = `${code}.TW`;
     if (!wanted.has(symbol)) continue;
-    const close = isArrayRow
-      ? toNumber(row[7])
-      : toNumber(row?.ClosingPrice ?? row?.ClosePrice ?? row?.closingPrice ?? row?.closePrice);
-    out.set(symbol, close);
+    const close = toCloseNumber(closingPrice);
+    if (typeof close === "number") {
+      out.set(symbol, close);
+    }
   }
   return out;
 }
@@ -140,8 +186,11 @@ export async function fetchRealtimePrice(symbol) {
     return realtimeValue;
   }
   const map = await getFallbackPriceMap([target]);
-  const price = map.get(target);
-  return typeof price === "number" ? price : null;
+  const closePrice = map.get(target);
+  if (typeof closePrice === "number") {
+    return closePrice;
+  }
+  return getStaticFallbackPrice(target);
 }
 
 export async function fetchRealtimePrices(symbols) {
@@ -156,13 +205,32 @@ export async function fetchRealtimePrices(symbols) {
     }
   }
   const map = await getFallbackPriceMap(normalized);
-  return normalized.map((symbol) => {
+  const preliminary = normalized.map((symbol) => {
     const realtime = realtimeMap.get(symbol);
     if (typeof realtime?.price === "number") {
       return { symbol, price: realtime.price, source: realtime.source };
     }
-    const price = map.get(symbol);
-    return { symbol, price: typeof price === "number" ? price : null, source: "close" };
+    const closePrice = map.get(symbol);
+    if (typeof closePrice === "number") {
+      return { symbol, price: closePrice, source: "close" };
+    }
+    return { symbol, price: null, source: "close" };
+  });
+
+  if (!preliminary.some((row) => row.price == null)) {
+    return preliminary;
+  }
+
+  const staticMap = await loadScreenerPriceMap();
+  return preliminary.map((row) => {
+    if (typeof row.price === "number") {
+      return row;
+    }
+    const staticPrice = staticMap.get(row.symbol);
+    if (typeof staticPrice === "number") {
+      return { symbol: row.symbol, price: staticPrice, source: "static" };
+    }
+    return row;
   });
 }
 

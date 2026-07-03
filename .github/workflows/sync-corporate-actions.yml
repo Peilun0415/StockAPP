@@ -2,8 +2,8 @@ name: Sync TWT48U to Firestore
 
 on:
   schedule:
-    # UTC 02:00 = 台灣時間 10:00（GitHub Actions 以 UTC 為準）
-    - cron: "0 2 * * *"
+    # UTC 02:00 Mon–Fri = 台灣時間週一～週五 10:00
+    - cron: "0 2 * * 1-5"
   workflow_dispatch:
 
 jobs:
@@ -25,3 +25,9 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: npm run sync:corporate
+
+      - name: Report failure to Firestore
+        if: failure()
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/report-app-error.mjs "github:sync-corporate-actions" "Sync TWT48U workflow failed"

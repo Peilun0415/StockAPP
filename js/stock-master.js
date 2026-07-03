@@ -1,8 +1,15 @@
+import {
+  fetchStockDayAllRows,
+  normalizeStockDayAllRow,
+  toCloseNumber
+} from "./twse-stock-day-all.js";
+
 const TWSE_ENDPOINTS = [
   "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json"
 ];
 const RETRY_MS_MIN = 3000;
 const RETRY_MS_MAX = 60000;
+const FETCH_TIMEOUT_MS = 15_000;
 
 function normalizeSymbol(symbol) {
   return String(symbol || "").toUpperCase();
@@ -20,24 +27,18 @@ function toSymbol(code) {
 }
 
 function buildMasterFromTwseRows(rows) {
-  // 取 Code/Name/最近收盤價（ClosingPrice），避免 payload 太大
   const map = new Map();
   for (const row of rows || []) {
-    const isArrayRow = Array.isArray(row);
-    const code = isArrayRow
-      ? row[0]
-      : row.Code || row.code || row.Symbol || row.symbol;
-    const name = isArrayRow
-      ? row[1]
-      : row.Name || row.name || row.NameZh || row.nameZh || "";
+    const { code, name, closingPrice } = normalizeStockDayAllRow(row);
     const symbol = toSymbol(code);
     if (!symbol) continue;
     if (!map.has(symbol)) {
-      const closing = isArrayRow
-        ? row[7]
-        : row.ClosingPrice ?? row.ClosePrice ?? row.closingPrice ?? row.closePrice ?? null;
-      const lastClose = closing === null || closing === "" ? null : Number(closing);
-      map.set(symbol, { symbol, name: String(name || "").trim(), lastClose: Number.isFinite(lastClose) ? lastClose : null });
+      const lastClose = toCloseNumber(closingPrice);
+      map.set(symbol, {
+        symbol,
+        name: String(name || "").trim(),
+        lastClose
+      });
     }
   }
   return Array.from(map.values()).filter((x) => x.symbol && x.name);
@@ -49,12 +50,9 @@ async function fetchTwseMaster() {
   let lastError = null;
   for (const endpoint of TWSE_ENDPOINTS) {
     try {
-      const res = await fetch(endpoint);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const payload = await res.json();
-      const rows = Array.isArray(payload) ? payload : payload?.data;
+      const rows = await fetchStockDayAllRows(endpoint, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      });
       return buildMasterFromTwseRows(rows);
     } catch (error) {
       lastError = new Error(`endpoint ${endpoint} failed: ${error?.message || error}`);
@@ -63,15 +61,55 @@ async function fetchTwseMaster() {
   throw lastError || new Error("all TWSE endpoints failed");
 }
 
+async function loadScreenerStockMaster() {
+  const res = await fetch("./data/screener.json", { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  const payload = await res.json();
+  const map = new Map();
+  for (const market of ["sii", "otc"]) {
+    for (const row of payload?.[market]?.rows || []) {
+      const code = String(row?.code || "").trim();
+      const name = String(row?.name || "").trim();
+      if (!code) continue;
+      const symbol = toSymbol(code);
+      if (!symbol || map.has(symbol)) continue;
+      map.set(symbol, { symbol, name: name || symbol, lastClose: null });
+    }
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * 搜尋用主檔：TWSE 單次嘗試，失敗則退回 screener.json（含上櫃名稱）。
+ */
+export async function loadStockMasterForSearch() {
+  try {
+    const items = await fetchTwseMaster();
+    if (items?.length) {
+      return items;
+    }
+    console.warn("TWSE 主檔回傳空資料，改用 screener.json");
+  } catch (error) {
+    console.warn("TWSE 主檔載入失敗，改用 screener.json", error);
+  }
+  try {
+    return await loadScreenerStockMaster();
+  } catch (error) {
+    console.warn("screener.json 主檔載入失敗", error);
+    return [];
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 }
 
-export async function loadStockMasterList() {
-  // 不再 fallback 本地快照，改為持續重試遠端直到成功
-  // 注意：若遠端長時間不可用，這裡會持續等待。
+export async function loadStockMasterList(options = {}) {
+  const { retryUntilSuccess = true } = options;
   let retryMs = RETRY_MS_MIN;
   for (;;) {
     try {
@@ -82,6 +120,9 @@ export async function loadStockMasterList() {
       console.warn("遠端主檔回傳空資料，稍後重試");
     } catch (error) {
       console.warn("讀取遠端主檔失敗，稍後重試", error);
+    }
+    if (!retryUntilSuccess) {
+      return [];
     }
     await sleep(retryMs);
     retryMs = Math.min(RETRY_MS_MAX, retryMs * 2);
@@ -94,11 +135,11 @@ export function searchStockMaster(masterList, query) {
 
   const matches = masterList.filter((s) => {
     const symbol = normalizeSymbol(s.symbol);
-    const name = String(s.name || "");
+    const name = String(s.name || "").toUpperCase();
     if (q.includes(".")) {
       return symbol === q || symbol.includes(q);
     }
-    // 使用者輸入純代號：支援「2330」或「2330.TW」
+    // 使用者輸入純代號：支援「2330」或「2330.TW」；名稱比對不分大小寫
     return symbol.replace(".TW", "").includes(q) || symbol.includes(q) || name.includes(q);
   });
 

@@ -2,8 +2,8 @@ name: Build Screener Data
 
 on:
   schedule:
-    # UTC 18:00 = 台灣時間 02:00（避開開盤時段，月營收/財報非即時資料）
-    - cron: "0 18 * * *"
+    # UTC 18:00 Sun–Thu = 台灣時間週一～週五 02:00
+    - cron: "0 18 * * 0-4"
   workflow_dispatch:
 
 permissions:
@@ -35,3 +35,9 @@ jobs:
             git commit -m "chore: update screener data"
             git push
           fi
+
+      - name: Report failure to Firestore
+        if: failure()
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/report-app-error.mjs "github:build-screener-data" "Build screener data workflow failed"

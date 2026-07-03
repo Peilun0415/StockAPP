@@ -245,11 +245,14 @@ function sortTable(market, index, header) {
 
 function searchTable(query) {
   const q = query.trim().toLowerCase();
-  const table = document.getElementById(`resultTable-${activeMarket}`);
-  table.querySelectorAll("tbody tr").forEach((tr) => {
-    tr.classList.toggle("un-searched", Boolean(q) && !tr.innerText.toLowerCase().includes(q));
-    applyMarkFilterToRow(tr);
-  });
+  for (const market of ["sii", "otc"]) {
+    const table = document.getElementById(`resultTable-${market}`);
+    if (!table) continue;
+    table.querySelectorAll("tbody tr").forEach((tr) => {
+      tr.classList.toggle("un-searched", Boolean(q) && !tr.innerText.toLowerCase().includes(q));
+      applyMarkFilterToRow(tr);
+    });
+  }
   updateEmptyState();
 }
 
@@ -266,7 +269,11 @@ async function refreshListedPrices(rows) {
       const cell = tr.querySelector(".price-cell");
       if (!cell || !info || typeof info.price !== "number") return;
       cell.textContent = info.price.toFixed(2);
-      cell.title = info.source === "realtime" ? "即時價" : "收盤價";
+      cell.title = info.source === "realtime"
+        ? "即時價"
+        : info.source === "static"
+          ? "靜態參考價（screener.json）"
+          : "收盤價";
     });
   } catch (error) {
     console.warn("更新上市即時股價失敗", error);
@@ -324,8 +331,8 @@ function switchMarket(market) {
   });
   document.getElementById("resultTable-sii").classList.toggle("active", market === "sii");
   document.getElementById("resultTable-otc").classList.toggle("active", market === "otc");
-  searchInputEl.value = "";
-  applyRowFilters(market);
+  applyRowFilters("sii");
+  applyRowFilters("otc");
   updateEmptyState();
   updateColorSortBtn();
 }
@@ -376,7 +383,7 @@ function bindEvents() {
     btn.addEventListener("click", () => switchMarket(btn.dataset.market));
   });
 
-  searchInputEl.addEventListener("input", debounce(() => searchTable(searchInputEl.value)));
+  searchInputEl?.addEventListener("input", debounce(() => searchTable(searchInputEl.value)));
 
   bindMarkFilterCheckbox(checkboxCheckEl, "checkbox-check-status");
   bindMarkFilterCheckbox(checkboxStarEl, "checkbox-star-status");

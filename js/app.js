@@ -5,8 +5,9 @@ import { loadMarketCorporateSummaries, loadLatestCompletedEvents } from "./marke
 import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
-import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
+import { loadStockMasterForSearch, searchStockMaster } from "./stock-master.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
+import { installGlobalErrorReporting } from "./app-error-store.js";
 
 const listRoot = document.querySelector("#stockList");
 const keywordInput = document.querySelector("#keyword");
@@ -224,7 +225,9 @@ function renderCards(items) {
       ? "即時"
       : item.priceSource === "prevClose"
         ? "昨收"
-        : "收盤";
+        : item.priceSource === "static"
+          ? "靜態參考"
+          : "收盤";
 
     return `
       <article class="stock-card" data-symbol="${item.symbol}">
@@ -297,19 +300,20 @@ function renderCards(items) {
 async function enrichAnnualCorporateActions(items) {
   if (!items.length) return items;
   const symbols = items.map((x) => x.symbol);
-  const [marketRes, previousRes, actionRes] = await Promise.allSettled([
-    loadMarketCorporateSummaries(symbols),
+  const marketRes = await loadMarketCorporateSummaries(symbols).catch((error) => {
+    console.warn("讀取市場除權息快取失敗", error);
+    return new Map();
+  });
+  const marketMap = marketRes instanceof Map ? marketRes : new Map();
+
+  const [previousRes, actionRes] = await Promise.allSettled([
     loadLatestCompletedEvents(symbols),
-    fetchAnnualCorporateActions(symbols)
+    fetchAnnualCorporateActions(symbols, new Date().getFullYear(), { marketMap })
   ]);
 
-  const marketMap = marketRes.status === "fulfilled" ? marketRes.value : new Map();
   const previousEventMap = previousRes.status === "fulfilled" ? previousRes.value : new Map();
   const actionMap = actionRes.status === "fulfilled" ? actionRes.value : new Map();
 
-  if (marketRes.status === "rejected") {
-    console.warn("讀取市場除權息快取失敗", marketRes.reason);
-  }
   if (previousRes.status === "rejected") {
     console.warn("讀取上一期除權息資料失敗", previousRes.reason);
   }
@@ -370,7 +374,7 @@ function escapeHtml(s) {
 async function ensureMasterLoaded() {
   if (stockMaster.length) return stockMaster;
   if (masterLoadingPromise) return masterLoadingPromise;
-  masterLoadingPromise = loadStockMasterList()
+  masterLoadingPromise = loadStockMasterForSearch()
     .then((items) => {
       stockMaster = items || [];
       return stockMaster;
@@ -569,6 +573,7 @@ if (searchSuggestRoot) {
 async function boot() {
   try {
     setPageLoading(true);
+    installGlobalErrorReporting(() => currentUid);
     const returnTo = window.location.pathname + window.location.search;
     const user = await requireAuth(returnTo);
     // 未登入已被跳轉；若 Firebase 未設定則 user 可能為 null

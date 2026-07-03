@@ -102,7 +102,7 @@ export async function addWatchStock(item, uid = null) {
     const list = getLocalWatchlist(uid);
     const exists = list.some((i) => i.symbol === item.symbol);
     if (!exists) {
-      list.push(item);
+      list.unshift({ symbol: item.symbol, name: item.name || item.symbol });
       saveLocalWatchlist(list, uid);
     }
     return list;
@@ -119,12 +119,26 @@ export async function addWatchStock(item, uid = null) {
     );
     return loadWatchlist(uid);
   }
-  const maxOrder = ordered.reduce(
-    (m, x) => Math.max(m, Number.isFinite(Number(x.sortOrder)) ? Number(x.sortOrder) : -1),
-    -1
+
+  const batch = api.writeBatch(db);
+  for (const row of ordered) {
+    const sortOrder = Number(row.sortOrder);
+    batch.set(
+      getUserDoc(api, db, uid, row.symbol),
+      {
+        symbol: row.symbol,
+        name: row.name || row.symbol,
+        sortOrder: Number.isFinite(sortOrder) ? sortOrder + 1 : ordered.length
+      },
+      { merge: true }
+    );
+  }
+  batch.set(
+    getUserDoc(api, db, uid, item.symbol),
+    { symbol: item.symbol, name: item.name || item.symbol, sortOrder: 0 },
+    { merge: true }
   );
-  const payload = { ...item, sortOrder: maxOrder + 1 };
-  await api.setDoc(getUserDoc(api, db, uid, item.symbol), payload, { merge: true });
+  await batch.commit();
   return loadWatchlist(uid);
 }
 

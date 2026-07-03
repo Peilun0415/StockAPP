@@ -6,7 +6,7 @@ import {
 } from "./watchlist-store.js";
 import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
-import { loadStockMasterList, searchStockMaster } from "./stock-master.js";
+import { loadStockMasterForSearch, searchStockMaster } from "./stock-master.js";
 
 const listEl = document.querySelector("#watchlistEditList");
 const emptyEl = document.querySelector("#watchlistEditEmpty");
@@ -64,7 +64,7 @@ function escapeHtml(s) {
 async function ensureMasterLoaded() {
   if (stockMaster.length) return stockMaster;
   if (masterLoadingPromise) return masterLoadingPromise;
-  masterLoadingPromise = loadStockMasterList()
+  masterLoadingPromise = loadStockMasterForSearch()
     .then((loaded) => {
       stockMaster = loaded || [];
       return stockMaster;

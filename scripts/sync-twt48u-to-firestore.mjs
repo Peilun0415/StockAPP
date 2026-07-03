@@ -12,6 +12,11 @@
  *
  * 用法：node scripts/sync-twt48u-to-firestore.mjs
  */
+import {
+  fetchStockDayAllRows,
+  normalizeStockDayAllRow,
+  toCloseNumber
+} from "../js/twse-stock-day-all.js";
 import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
@@ -275,19 +280,14 @@ async function fetchStockDayAllCloseMap(ymdCompact) {
     return stockDayAllCache.get(ymdCompact);
   }
   const url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json&date=${ymdCompact}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`STOCK_DAY_ALL failed ${ymdCompact}: HTTP ${res.status}`);
-  }
-  const payload = await res.json();
-  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  const rows = await fetchStockDayAllRows(url);
   const map = new Map();
   for (const row of rows) {
-    const code = String(row?.[0] || "").trim();
+    const { code, closingPrice } = normalizeStockDayAllRow(row);
     if (!code) continue;
     const sym = `${code}.TW`;
-    const close = Number(String(row?.[7] ?? "").replaceAll(",", ""));
-    if (Number.isFinite(close)) {
+    const close = toCloseNumber(closingPrice);
+    if (typeof close === "number") {
       map.set(sym, close);
     }
   }

@@ -1,4 +1,14 @@
 const TWSE_EXRIGHT_ENDPOINT = "https://www.twse.com.tw/exchangeReport/TWT48U";
+const FETCH_TIMEOUT_MS = 20_000;
+const yearRowsCache = new Map();
+
+function symbolNeedsMarketFallback(symbol, marketMap) {
+  const m = marketMap.get(symbol);
+  if (!m) return true;
+  const hasSchedule = Boolean(m.nextDividendDate || m.nextRightsDate);
+  const hasAmount = m.cashDividend != null || m.stockDividend != null;
+  return !hasSchedule && !hasAmount;
+}
 
 function toSymbol(code) {
   const c = String(code || "").trim();
@@ -79,14 +89,19 @@ function parseCorporateRow(row, targetYear) {
 }
 
 async function fetchTwseRowsByYear(year) {
+  if (yearRowsCache.has(year)) {
+    return yearRowsCache.get(year);
+  }
   const date = `${year}0101`;
   const url = `${TWSE_EXRIGHT_ENDPOINT}?response=json&date=${date}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) {
     throw new Error(`Fetch corporate actions failed: HTTP ${res.status}`);
   }
   const payload = await res.json();
-  return Array.isArray(payload?.data) ? payload.data : [];
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  yearRowsCache.set(year, rows);
+  return rows;
 }
 
 function buildCorporateMap(rows, targetYear) {
@@ -105,14 +120,22 @@ function buildCorporateMap(rows, targetYear) {
   return bySymbol;
 }
 
-export async function fetchAnnualCorporateActions(symbols, year = new Date().getFullYear()) {
+export async function fetchAnnualCorporateActions(symbols, year = new Date().getFullYear(), options = {}) {
   const uniqueSymbols = new Set((symbols || []).map((s) => String(s || "").toUpperCase()));
   if (!uniqueSymbols.size) return new Map();
+
+  const marketMap = options.marketMap instanceof Map ? options.marketMap : null;
+  const symbolsNeedingFallback = marketMap
+    ? [...uniqueSymbols].filter((symbol) => symbolNeedsMarketFallback(symbol, marketMap))
+    : [...uniqueSymbols];
+  if (!symbolsNeedingFallback.length) {
+    return new Map();
+  }
 
   const rows = await fetchTwseRowsByYear(year);
   const allMap = buildCorporateMap(rows, year);
   const filtered = new Map();
-  for (const symbol of uniqueSymbols) {
+  for (const symbol of symbolsNeedingFallback) {
     const item = allMap.get(symbol);
     if (item) {
       filtered.set(symbol, item);
