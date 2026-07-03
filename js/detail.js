@@ -11,6 +11,7 @@ import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
 import { loadStockMasterForSearch } from "./stock-master.js";
+import { findAnchorCloseBeforeEx } from "./twse-stock-day.js";
 import {
   initDateSegmentFields,
   resetDateFieldsInForm,
@@ -139,6 +140,41 @@ function getTypeByDividend(cashDividend, stockDividend) {
 
 function findHistoryEvent(date, type) {
   return (stock.history || []).find((x) => x.date === date && (x.type || "--") === (type || "--")) || null;
+}
+
+/** 以除權息前一日收盤價修正歷史紀錄（Firestore 舊資料可能誤用最新收盤價） */
+async function enrichHistoryAnchorCloses(symbol, history) {
+  const enriched = [];
+  for (const h of history || []) {
+    if (!h?.date || isFutureDateYmd(h.date) || h.referencePriceMode === "manual_anchor_input") {
+      enriched.push(h);
+      continue;
+    }
+    try {
+      const anchor = await findAnchorCloseBeforeEx(symbol, parseDateYmd(h.date));
+      if (!anchor?.anchorClose) {
+        enriched.push(h);
+        continue;
+      }
+      const typeLabel = h.type || getTypeByDividend(h.cashDividend, h.stockDividend);
+      enriched.push({
+        ...h,
+        anchorClose: anchor.anchorClose,
+        referenceAnchorDate: anchor.referenceAnchorDate,
+        referencePrice: calcReferencePrice(
+          anchor.anchorClose,
+          h.cashDividend,
+          h.stockDividend,
+          typeLabel
+        ),
+        referencePriceMode: "anchor_close_before_ex"
+      });
+    } catch (error) {
+      console.warn(`修正 ${symbol} ${h.date} 當時價格失敗`, error);
+      enriched.push(h);
+    }
+  }
+  return enriched;
 }
 
 function removeHistoryEvent(date, type) {
@@ -623,6 +659,15 @@ async function initialize() {
   canManageHistory = historyResult.manageable;
   renderSummary(stock);
   renderHistory(stock);
+
+  enrichHistoryAnchorCloses(stock.symbol, stock.history)
+    .then((fixed) => {
+      stock.history = fixed;
+      renderHistory(stock);
+    })
+    .catch((error) => {
+      console.warn("修正歷史當時價格失敗", error);
+    });
 }
 
 async function boot() {

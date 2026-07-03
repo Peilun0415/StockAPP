@@ -12,11 +12,7 @@
  *
  * 用法：node scripts/sync-twt48u-to-firestore.mjs
  */
-import {
-  fetchStockDayAllRows,
-  normalizeStockDayAllRow,
-  toCloseNumber
-} from "../js/twse-stock-day-all.js";
+import { findAnchorCloseBeforeEx } from "../js/twse-stock-day.js";
 import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
@@ -257,70 +253,6 @@ function parseExDateSlash(dateText) {
   if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
   const dt = new Date(y, m - 1, d);
   return Number.isNaN(dt.getTime()) ? null : dt;
-}
-
-function formatSlashDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}/${m}/${day}`;
-}
-
-function formatYmdCompactFromDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}${m}${day}`;
-}
-
-const stockDayAllCache = new Map();
-
-async function fetchStockDayAllCloseMap(ymdCompact) {
-  if (stockDayAllCache.has(ymdCompact)) {
-    return stockDayAllCache.get(ymdCompact);
-  }
-  const url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json&date=${ymdCompact}`;
-  const rows = await fetchStockDayAllRows(url);
-  const map = new Map();
-  for (const row of rows) {
-    const { code, closingPrice } = normalizeStockDayAllRow(row);
-    if (!code) continue;
-    const sym = `${code}.TW`;
-    const close = toCloseNumber(closingPrice);
-    if (typeof close === "number") {
-      map.set(sym, close);
-    }
-  }
-  stockDayAllCache.set(ymdCompact, map);
-  return map;
-}
-
-/**
- * 除權息日前一個「有收盤資料」的交易日收盤價（例：4/20 除權息 → 取 4/19 收盤，遇假日往前找）
- */
-async function findAnchorCloseBeforeEx(symbol, exDate) {
-  const ex = exDate instanceof Date ? exDate : parseExDateSlash(String(exDate));
-  if (!ex) return null;
-  const d = new Date(ex.getFullYear(), ex.getMonth(), ex.getDate());
-  d.setDate(d.getDate() - 1);
-  for (let i = 0; i < 15; i += 1) {
-    const ymd = formatYmdCompactFromDate(d);
-    try {
-      const map = await fetchStockDayAllCloseMap(ymd);
-      const close = map.get(symbol);
-      if (typeof close === "number" && Number.isFinite(close)) {
-        return {
-          referenceAnchorDate: formatSlashDate(d),
-          anchorClose: close,
-          anchorYmd: ymd
-        };
-      }
-    } catch (error) {
-      console.warn(`讀取收盤 ${ymd} 失敗`, error);
-    }
-    d.setDate(d.getDate() - 1);
-  }
-  return null;
 }
 
 /** 台灣日曆「今天」0 點（僅用於日期比較） */
