@@ -394,25 +394,16 @@ function hideSuggestions() {
   searchSuggestRoot.innerHTML = "";
 }
 
-function showSuggestions(matches) {
-  if (!searchSuggestRoot) return;
-  if (!matches?.length) {
-    hideSuggestions();
-    return;
-  }
-  searchSuggestRoot.hidden = false;
-  searchSuggestRoot.innerHTML = matches.map((m) => {
-    return `
-      <button type="button" class="suggest-item" data-symbol="${escapeHtml(m.symbol)}" data-name="${escapeHtml(m.name)}">
-        <span class="suggest-code">${escapeHtml(m.symbol)}</span>
-        <span class="suggest-name">${escapeHtml(m.name)}</span>
-        <span class="suggest-add">加入</span>
-      </button>
-    `;
-  }).join("");
+function clearSearchInput() {
+  if (!keywordInput) return;
+  keywordInput.value = "";
+  hideSuggestions();
 }
 
+let suggestRequestId = 0;
+
 async function updateSuggestions(query) {
+  const requestId = ++suggestRequestId;
   const q = String(query || "").trim();
   if (!q) {
     hideSuggestions();
@@ -436,6 +427,8 @@ async function updateSuggestions(query) {
   }
 
   await ensureMasterLoaded();
+  if (requestId !== suggestRequestId) return;
+
   if (!stockMaster.length) {
     // 若主檔載入失敗，就保留快速建議
     if (!quick) {
@@ -445,7 +438,26 @@ async function updateSuggestions(query) {
   }
 
   const matches = searchStockMaster(stockMaster, q);
+  if (requestId !== suggestRequestId) return;
   showSuggestions(matches);
+}
+
+function showSuggestions(matches) {
+  if (!searchSuggestRoot) return;
+  if (!matches?.length) {
+    hideSuggestions();
+    return;
+  }
+  searchSuggestRoot.hidden = false;
+  searchSuggestRoot.innerHTML = matches.map((m) => {
+    return `
+      <button type="button" class="suggest-item" data-symbol="${escapeHtml(m.symbol)}" data-name="${escapeHtml(m.name)}">
+        <span class="suggest-code">${escapeHtml(m.symbol)}</span>
+        <span class="suggest-name">${escapeHtml(m.name)}</span>
+        <span class="suggest-add">加入</span>
+      </button>
+    `;
+  }).join("");
 }
 
 async function refreshRealtimePrice() {
@@ -499,7 +511,7 @@ async function addFromQuery(qRaw) {
   if (quickBest && (!stockMaster.length && !masterLoadingPromise)) {
     await addWatchStock({ symbol: quickBest.symbol, name: quickBest.name }, currentUid);
     await reloadForCurrentUser();
-    hideSuggestions();
+    clearSearchInput();
     return;
   }
 
@@ -513,7 +525,7 @@ async function addFromQuery(qRaw) {
 
   await addWatchStock({ symbol: best.symbol, name: best.name }, currentUid);
   await reloadForCurrentUser();
-  hideSuggestions();
+  clearSearchInput();
 }
 
 keywordInput.addEventListener("keydown", async (event) => {
@@ -556,8 +568,7 @@ if (searchSuggestRoot) {
 
     await addWatchStock({ symbol, name }, currentUid);
     await reloadForCurrentUser();
-    keywordInput.value = symbol;
-    hideSuggestions();
+    clearSearchInput();
   });
 
   // 點擊空白處收合

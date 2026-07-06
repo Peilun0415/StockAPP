@@ -84,6 +84,12 @@ function hideSuggestions() {
   searchSuggestRoot.innerHTML = "";
 }
 
+function clearSearchInput() {
+  if (!keywordInput) return;
+  keywordInput.value = "";
+  hideSuggestions();
+}
+
 function showSuggestions(matches) {
   if (!searchSuggestRoot) return;
   if (!matches?.length) {
@@ -100,7 +106,10 @@ function showSuggestions(matches) {
     `).join("");
 }
 
+let suggestRequestId = 0;
+
 async function updateSuggestions(query) {
+  const requestId = ++suggestRequestId;
   const q = String(query || "").trim();
   if (!q) {
     hideSuggestions();
@@ -123,12 +132,15 @@ async function updateSuggestions(query) {
   }
 
   await ensureMasterLoaded();
+  if (requestId !== suggestRequestId) return;
+
   if (!stockMaster.length) {
     if (!quick) hideSuggestions();
     return;
   }
 
   const matches = searchStockMaster(stockMaster, q);
+  if (requestId !== suggestRequestId) return;
   showSuggestions(matches);
 }
 
@@ -195,7 +207,7 @@ async function addFromQuery(qRaw) {
   if (quickBest && (!stockMaster.length && !masterLoadingPromise)) {
     await addWatchStock({ symbol: quickBest.symbol, name: quickBest.name }, currentUid);
     await reloadList();
-    hideSuggestions();
+    clearSearchInput();
     return;
   }
 
@@ -209,7 +221,7 @@ async function addFromQuery(qRaw) {
 
   await addWatchStock({ symbol: best.symbol, name: best.name }, currentUid);
   await reloadList();
-  hideSuggestions();
+  clearSearchInput();
 }
 
 listEl?.addEventListener("click", async (event) => {
@@ -416,8 +428,7 @@ if (searchSuggestRoot) {
     if (!symbol) return;
     await addWatchStock({ symbol, name }, currentUid);
     await reloadList();
-    keywordInput.value = symbol;
-    hideSuggestions();
+    clearSearchInput();
   });
 
   document.addEventListener("click", (event) => {
