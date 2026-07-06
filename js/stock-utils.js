@@ -1,17 +1,17 @@
 export function getSignalByRatio(spreadRatio) {
   if (spreadRatio == null) {
-    return { key: "white", icon: "⚪", text: "（待定）" };
+    return { key: "white", text: "（待定）" };
   }
   if (Math.abs(spreadRatio) <= 3) {
-    return { key: "white", icon: "⚪", text: "（常態區間）" };
+    return { key: "white", text: "（常態區間）" };
   }
   if (Math.abs(spreadRatio) <= 5) {
-    return { key: "green", icon: "🟢", text: "（初步獲利區）" };
+    return { key: "green", text: "（初步獲利區）" };
   }
   if (Math.abs(spreadRatio) <= 10) {
-    return { key: "yellow", icon: "🟡", text: "（高價值區）" };
+    return { key: "yellow", text: "（高價值區）" };
   }
-  return { key: "red", icon: "🔴", text: "（超額利潤區）" };
+  return { key: "red", text: "（超額利潤區）" };
 }
 
 export function formatMoney(v) {

@@ -7,6 +7,7 @@ import { bindPushNotificationControls } from "./push-notifications.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterForSearch, searchStockMaster } from "./stock-master.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
+import { iconClose } from "./icons.js";
 import { installGlobalErrorReporting } from "./app-error-store.js";
 
 const listRoot = document.querySelector("#stockList");
@@ -216,8 +217,8 @@ function renderCards(items) {
     const previousRatioText = item.previousSpreadRatio == null ? "待定" : `${item.previousSpreadRatio}%`;
     const previousSignal = getSignalByRatio(item.previousSpreadRatio);
     const previousSignalText = item.previousSpreadRatio == null
-      ? "⚪ 待定"
-      : `${previousSignal.icon} ${previousSignal.text}`;
+      ? "待定"
+      : previousSignal.text;
     const previousRefText = item.previousEvent?.referencePrice == null ? "等待數據中" : formatMoney(item.previousEvent.referencePrice);
     const previousDateText = item.previousEvent?.date || "--";
     const showPreviousEventBox = Boolean(item.previousEvent?.date || item.previousEvent?.referencePrice != null);
@@ -231,7 +232,7 @@ function renderCards(items) {
 
     return `
       <article class="stock-card" data-symbol="${item.symbol}">
-        <button class="delete-btn" type="button" data-delete="${item.symbol}" aria-label="刪除追蹤股">✕</button>
+        <button class="delete-btn" type="button" data-delete="${item.symbol}" aria-label="刪除追蹤股">${iconClose}</button>
         <a class="card-link" href="./stock.html?symbol=${encodeURIComponent(item.symbol)}">
           <div class="left-col">
             ${upcomingEventLabel ? `<p class="event-wrap"><span class="event-soon-tag">${upcomingEventLabel}</span></p>` : ""}
@@ -283,7 +284,7 @@ function renderCards(items) {
             `
                 : `<p class="current-ref-line">${refTitle}: ${refText}</p>`
             ) : ""}
-            ${showSignal ? `<p class="current-signal-line"><span class="badge ${signal.key}">${signal.icon} ${signal.text} 價差 ${ratioText}</span></p>` : ""}
+            ${showSignal ? `<p class="current-signal-line"><span class="badge ${signal.key}">${signal.text} 價差 ${ratioText}</span></p>` : ""}
             ${showPreviousEventBox ? `
               <div class="previous-event-box">
                 <p class="previous-event-title">上一期除權息（${previousDateText}）｜ 參考價：${previousRefText}</p>

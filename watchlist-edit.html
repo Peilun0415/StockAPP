@@ -10,7 +10,7 @@
   <link rel="manifest" href="./site.webmanifest">
   <link rel="icon" type="image/png" href="./icons/app-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/app-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=20260505">
+  <link rel="stylesheet" href="./styles.css?v=20260706d">
 </head>
 <body>
   <div id="pageLoading" class="page-loading" role="status" aria-live="polite">
@@ -21,7 +21,14 @@
   </div>
   <main class="page page-watchlist-edit">
     <header class="detail-head watchlist-edit-head">
-      <a href="./index.html" class="back-link" aria-label="返回追蹤清單">◀ 返回</a>
+      <a href="./index.html" class="back-link" aria-label="返回追蹤清單">
+        <span class="back-link-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img" focusable="false">
+            <path d="M15.5 5.5L9 12l6.5 6.5-1.4 1.4L6.2 12l7.9-7.9z"></path>
+          </svg>
+        </span>
+        <span>返回</span>
+      </a>
       <div class="watchlist-edit-title-wrap">
         <h1 class="watchlist-edit-title">編輯追蹤清單</h1>
         <p class="watchlist-edit-hint">長按任一列可拖曳排序；搜尋可新增股票</p>

@@ -12,6 +12,7 @@ import { requireAuth } from "./auth-guard.js";
 import { getSignalByRatio, formatMoney, createEmptyStock } from "./stock-utils.js";
 import { loadStockMasterForSearch } from "./stock-master.js";
 import { findAnchorCloseBeforeEx } from "./twse-stock-day.js";
+import { iconEdit, iconDelete } from "./icons.js";
 import {
   initDateSegmentFields,
   resetDateFieldsInForm,
@@ -536,8 +537,16 @@ function renderHistory(item) {
 
   historyRoot.innerHTML = filtered.map((h) => {
     const isFutureEvent = isFutureDateYmd(h.date);
-    const cashText = h.cashDividend == null ? "還未公佈" : formatMoney(h.cashDividend);
-    const stockText = h.stockDividend == null ? "還未公佈" : `${h.stockDividend} 股`;
+    const dividendParts = [];
+    if (h.cashDividend != null) {
+      dividendParts.push(`現金股利: ${formatMoney(h.cashDividend)}`);
+    }
+    if (h.stockDividend != null) {
+      dividendParts.push(`股票股利: ${h.stockDividend} 股`);
+    }
+    const dividendLine = dividendParts.length
+      ? `<p>${dividendParts.join(" | ")}</p>`
+      : "";
     const eventPriceText = isFutureEvent
       ? formatMoney(item.currentPrice)
       : (h.anchorClose == null ? "等待數據中" : formatMoney(h.anchorClose));
@@ -553,24 +562,24 @@ function renderHistory(item) {
       : `除權息參考價: ${formatMoney(effectiveReference)}`;
     const signalLine = effectiveReference == null
       ? "<p>價差比: 待定</p>"
-      : `<p>價差比: ${ratioText} <span class="badge ${signal.key}">${signal.icon} ${signal.text}</span></p>`;
+      : `<p>價差比: ${ratioText} <span class="badge ${signal.key}">${signal.text}</span></p>`;
     const actionLine = canManageHistory
       ? `
-        <p class="history-actions">
-          <button type="button" class="manual-cancel-btn" data-edit-history="1" data-date="${h.date}" data-type="${h.type || "--"}">編輯</button>
-          <button type="button" class="manual-submit-btn" data-delete-history="1" data-date="${h.date}" data-type="${h.type || "--"}">刪除</button>
-        </p>
+        <div class="history-card-actions">
+          <button type="button" class="history-icon-btn history-icon-btn--edit" data-edit-history="1" data-date="${h.date}" data-type="${h.type || "--"}" aria-label="編輯">${iconEdit}</button>
+          <button type="button" class="history-icon-btn history-icon-btn--delete" data-delete-history="1" data-date="${h.date}" data-type="${h.type || "--"}" aria-label="刪除">${iconDelete}</button>
+        </div>
       `
       : "";
     return `
-      <article class="history-card ${tone}">
+      <article class="history-card ${tone}${canManageHistory ? " has-actions" : ""}">
+        ${actionLine}
         <span class="timeline-dot ${tone}"></span>
         <p><strong>${h.date}</strong></p>
-        <p>現金股利: ${cashText} | 股票股利: ${stockText}</p>
+        ${dividendLine}
         <p>${isFutureEvent ? "目前價格" : "當時價格"}: ${eventPriceText}</p>
         <p>${refLine}</p>
         ${signalLine}
-        ${actionLine}
       </article>
     `;
   }).join("");

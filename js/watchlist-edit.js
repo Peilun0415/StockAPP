@@ -7,6 +7,7 @@ import {
 import { subscribeAuthUser, isAuthAvailable } from "./auth.js";
 import { requireAuth } from "./auth-guard.js";
 import { loadStockMasterForSearch, searchStockMaster } from "./stock-master.js";
+import { iconClose } from "./icons.js";
 
 const listEl = document.querySelector("#watchlistEditList");
 const emptyEl = document.querySelector("#watchlistEditEmpty");
@@ -166,7 +167,7 @@ function renderList() {
             <span class="watchlist-edit-symbol">${sym}</span>
           </p>
         </div>
-        <button type="button" class="watchlist-edit-remove" data-remove="${sym}" aria-label="刪除 ${sym}">✕</button>
+        <button type="button" class="watchlist-edit-remove" data-remove="${sym}" aria-label="刪除 ${sym}">${iconClose}</button>
       </li>
     `;
   }).join("");

@@ -16,6 +16,7 @@ import {
   saveConditions,
   loadScreenerData
 } from "./screener-common.js";
+import { normalizeMark, renderMarkCell } from "./icons.js";
 
 const pageLoadingEl = document.querySelector("#pageLoading");
 const queryConditionEl = document.querySelector("#queryCondition");
@@ -59,15 +60,22 @@ function getColorRank(tr) {
 }
 
 function shouldShowMark(mark) {
-  if (!mark) return checkboxNoneEl.checked;
-  if (mark === "✔️") return checkboxCheckEl.checked;
-  if (mark === "⭐") return checkboxStarEl.checked;
-  if (mark === "❌") return checkboxCrossEl.checked;
+  const key = normalizeMark(mark);
+  if (!key) return checkboxNoneEl.checked;
+  if (key === "check") return checkboxCheckEl.checked;
+  if (key === "star") return checkboxStarEl.checked;
+  if (key === "cross") return checkboxCrossEl.checked;
   return true;
 }
 
+function setStatusCell(cell, mark) {
+  const key = normalizeMark(mark);
+  cell.dataset.mark = key;
+  cell.innerHTML = renderMarkCell(key);
+}
+
 function applyMarkFilterToRow(tr) {
-  const mark = tr.querySelector(".status-cell")?.textContent ?? "";
+  const mark = tr.querySelector(".status-cell")?.dataset.mark ?? "";
   const hiddenByMark = !shouldShowMark(mark);
   const hiddenBySearch = tr.classList.contains("un-searched");
   tr.hidden = hiddenByMark || hiddenBySearch;
@@ -121,7 +129,7 @@ function createRow(row, market) {
   tr.className = getHighlightClass(row);
 
   tr.innerHTML = `
-    <td class="status-cell screener-sticky-col">${mark}</td>
+    <td class="status-cell screener-sticky-col"></td>
     <td class="screener-name-cell screener-sticky-col link-button">${row.name ?? row.code}</td>
     <td>${row.industry ?? ""}</td>
     <td class="price-cell" data-price="${row.price ?? ""}">${row.price ?? ""}</td>
@@ -143,10 +151,11 @@ function createRow(row, market) {
   });
 
   const statusTd = tr.querySelector(".status-cell");
+  setStatusCell(statusTd, mark);
   statusTd.addEventListener("click", async () => {
-    const current = statusTd.textContent;
+    const current = statusTd.dataset.mark || "";
     const next = MARK_CYCLE[(MARK_CYCLE.indexOf(current) + 1) % MARK_CYCLE.length];
-    statusTd.textContent = next;
+    setStatusCell(statusTd, next);
     if (next) marks[row.code] = next;
     else delete marks[row.code];
     await saveMark(row.code, next, currentUid);
@@ -371,7 +380,7 @@ async function reloadMarks(uid) {
       const code = tr.dataset.code;
       const mark = marks[code] ?? "";
       const cell = tr.querySelector(".status-cell");
-      if (cell) cell.textContent = mark;
+      if (cell) setStatusCell(cell, mark);
       applyMarkFilterToRow(tr);
     });
   }

@@ -1,8 +1,9 @@
-// 個股篩選頁的 ✔️⭐❌ 標記儲存：登入時存 Firestore（跨裝置同步），未登入退回 localStorage
+// 個股篩選頁標記儲存：登入時存 Firestore（跨裝置同步），未登入退回 localStorage
 import { firebaseConfig } from "./firebase-config.js";
+import { MARK_KEYS, normalizeMark } from "./icons.js";
 
 const LS_KEY_BASE = "stockapp_screener_marks_v1";
-export const MARK_STATES = ["✔️", "⭐", "❌"];
+export { MARK_KEYS };
 
 let firestoreDb = null;
 let firestoreApi = null;
@@ -27,10 +28,19 @@ function lsKey(uid) {
   return uid ? `${LS_KEY_BASE}_${uid}` : LS_KEY_BASE;
 }
 
+function normalizeMarksMap(raw) {
+  const out = {};
+  for (const [code, state] of Object.entries(raw || {})) {
+    const key = normalizeMark(state);
+    if (key) out[code] = key;
+  }
+  return out;
+}
+
 function getLocalMarks(uid) {
   try {
     const parsed = JSON.parse(localStorage.getItem(lsKey(uid)) || "{}");
-    return typeof parsed === "object" && parsed ? parsed : {};
+    return normalizeMarksMap(typeof parsed === "object" && parsed ? parsed : {});
   } catch {
     return {};
   }
@@ -44,7 +54,7 @@ function getMarkDoc(api, db, uid, code) {
   return api.doc(db, "users", uid, "screenerMarks", code);
 }
 
-// 回傳 { [公司代號]: "✔️" | "⭐" | "❌" }
+// 回傳 { [公司代號]: "check" | "star" | "cross" }
 export async function loadMarks(uid = null) {
   const fb = await ensureFirestore();
   if (!fb || !uid) {
@@ -54,9 +64,9 @@ export async function loadMarks(uid = null) {
   const snap = await api.getDocs(api.collection(db, "users", uid, "screenerMarks"));
   const marks = {};
   for (const doc of snap.docs) {
-    const state = doc.data()?.state;
-    if (MARK_STATES.includes(state)) {
-      marks[doc.id] = state;
+    const key = normalizeMark(doc.data()?.state);
+    if (key) {
+      marks[doc.id] = key;
     }
   }
   return marks;
@@ -64,17 +74,18 @@ export async function loadMarks(uid = null) {
 
 // state 為空字串時表示清除標記
 export async function saveMark(code, state, uid = null) {
+  const key = normalizeMark(state);
   const fb = await ensureFirestore();
   if (!fb || !uid) {
     const marks = getLocalMarks(uid);
-    if (state) marks[code] = state;
+    if (key) marks[code] = key;
     else delete marks[code];
     saveLocalMarks(marks, uid);
     return;
   }
   const { db, api } = fb;
-  if (state) {
-    await api.setDoc(getMarkDoc(api, db, uid, code), { state, updatedAt: Date.now() });
+  if (key) {
+    await api.setDoc(getMarkDoc(api, db, uid, code), { state: key, updatedAt: Date.now() });
   } else {
     await api.deleteDoc(getMarkDoc(api, db, uid, code));
   }

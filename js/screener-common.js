@@ -6,7 +6,7 @@ export const SECTORS = [
   "通信網路業", "汽車工業", "橡膠工業", "綠能環保", "金融業", "文化創意業", "農業科技", "其他"
 ];
 
-export const MARK_CYCLE = ["✔️", "⭐", "❌", ""];
+export const MARK_CYCLE = ["check", "star", "cross", ""];
 
 export const SCREENER_CONDITIONS_KEY = "stockapp_screener_conditions";
 

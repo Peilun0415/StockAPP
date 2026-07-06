@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap");
+
 :root {
   --bg: #f4f5f7;
   --card: #ffffff;
@@ -331,7 +333,6 @@ body {
 }
 
 .watchlist-edit-head .watchlist-edit-title-wrap {
-  text-align: center;
   min-width: 0;
 }
 
@@ -446,15 +447,18 @@ body {
 
 .watchlist-edit-remove {
   font: inherit;
-  font-size: 16px;
   width: 36px;
   height: 36px;
   border-radius: 10px;
   border: none;
-  background: #ffe8e8;
-  color: #b00020;
+  background: #fef2f2;
+  color: #dc2626;
   cursor: pointer;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .watchlist-edit-remove:hover {
@@ -574,13 +578,17 @@ body {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--stroke);
-  border-radius: 50%;
-  background: #fff;
-  color: #7b838f;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #94a3b8;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .left-col .title {
@@ -777,42 +785,68 @@ body {
 .badge {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   border-radius: 999px;
-  padding: 3px 10px;
-  font-weight: 700;
-  font-size: 13px;
+  padding: 4px 10px;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .right-col .badge {
-  font-weight: 700;
+  font-weight: 600;
   width: 100%;
 }
 
 .badge.green {
-  color: #0e9448;
-  background: #d8f2e2;
+  color: #15803d;
+  background: #ecfdf3;
+}
+
+.badge.green::before {
+  background: #22c55e;
 }
 
 .badge.yellow {
-  color: #bb7b00;
-  background: #ffefbf;
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.badge.yellow::before {
+  background: #f59e0b;
 }
 
 .badge.red {
-  color: #c8272f;
-  background: #ffd6d9cf;
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.badge.red::before {
+  background: #ef4444;
 }
 
 .badge.white {
-  color: #6d7380;
-  background: #eceff4;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.badge.white::before {
+  background: #94a3b8;
 }
 
 .detail-head {
-  display: grid;
-  grid-template-columns: auto 1fr;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 10px;
+  min-height: 40px;
   margin-bottom: 25px;
 }
 
@@ -821,12 +855,15 @@ body {
 }
 
 .back-link {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   text-decoration: none;
   color: #111318;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .back-link-icon {
@@ -843,13 +880,25 @@ body {
   fill: currentColor;
 }
 
-.detail-id-wrap {
+.detail-id-wrap,
+.watchlist-edit-head .watchlist-edit-title-wrap {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 520px);
+  max-width: calc(100% - 96px);
   text-align: center;
+  pointer-events: none;
+}
+
+.detail-id-wrap p,
+.watchlist-edit-head .watchlist-edit-title-wrap > * {
+  pointer-events: auto;
 }
 
 .detail-symbol {
   margin: 0;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -999,6 +1048,56 @@ h2 {
   border-radius: 14px;
   border: 1px solid var(--stroke);
   padding: 12px;
+}
+
+.history-card.has-actions {
+  padding-right: 72px;
+}
+
+.history-card-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 1;
+}
+
+.history-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.history-icon-btn .ui-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.history-icon-btn--edit {
+  color: #2563eb;
+}
+
+.history-icon-btn--edit:hover {
+  background: #eff6ff;
+}
+
+.history-icon-btn--delete {
+  color: #dc2626;
+}
+
+.history-icon-btn--delete:hover {
+  background: #fef2f2;
 }
 
 .timeline-dot {
@@ -1367,11 +1466,12 @@ h2 {
   right: 0;
   bottom: 0;
   z-index: 100;
-  border-top: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.06);
 }
 
 .bottom-nav-inner {
@@ -1380,41 +1480,63 @@ h2 {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
+  padding: 6px 10px 4px;
 }
 
 .bottom-nav-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 8px 4px 6px;
-  min-height: 54px;
+  gap: 2px;
+  padding: 6px 4px;
+  min-height: 50px;
   text-decoration: none;
-  color: var(--muted);
-  font-size: 11px;
+  color: #64748b;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.15s ease;
+  border-radius: 12px;
 }
 
 .bottom-nav-item svg {
   width: 22px;
   height: 22px;
   display: block;
+  transition: transform 0.15s ease;
 }
 
 .bottom-nav-item span {
   font-size: 10px;
+  line-height: 1.2;
 }
 
 .bottom-nav-item.is-active {
-  color: #2b6cff;
+  color: #2563eb;
+}
+
+.bottom-nav-item.is-active svg {
+  transform: translateY(-1px);
+}
+
+.bottom-nav-item.is-active::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  z-index: -1;
 }
 
 .bottom-nav-item:not(.is-active):hover {
-  color: #3f4b5d;
+  color: #334155;
 }
 
 /* 有底部導覽列的頁面，內容底部需預留空間避免被遮住 */
@@ -2024,21 +2146,99 @@ body.page-screener-result-body .screener-empty {
 
 .screener-mark-filters {
   display: flex;
-  gap: 8px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
-.screener-mark-filters label {
+.mark-filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-radius: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
   background: #fff;
   border: 1px solid var(--stroke);
   cursor: pointer;
   white-space: nowrap;
+  font-weight: 600;
+  color: #475569;
+  user-select: none;
+}
+
+.mark-filter-chip:has(input:checked) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.mark-filter-chip input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mark-filter-chip .mark-icon,
+.mark-filter-chip .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.mark-filter-check .ui-icon--check {
+  color: #16a34a;
+}
+
+.mark-filter-star .ui-icon--star {
+  color: #d97706;
+}
+
+.mark-filter-cross .ui-icon--cross {
+  color: #dc2626;
+}
+
+.ui-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.delete-btn .ui-icon,
+.watchlist-edit-remove .ui-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.date-cal-btn .ui-icon--calendar {
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+}
+
+.status-cell {
+  width: 42px;
+  text-align: center;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.status-cell .mark-icon {
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+}
+
+.status-cell .mark-icon--check {
+  color: #16a34a;
+}
+
+.status-cell .mark-icon--star {
+  color: #d97706;
+}
+
+.status-cell .mark-icon--cross {
+  color: #dc2626;
 }
 
 .screener-color-legend {
@@ -2184,13 +2384,6 @@ body.page-screener-result-body .screener-empty {
 
 .screener-table tbody td.screener-sticky-col:nth-child(2) {
   left: 42px;
-}
-
-.status-cell {
-  width: 42px;
-  text-align: center;
-  font-size: 16px;
-  cursor: pointer;
 }
 
 .screener-name-cell.link-button {
